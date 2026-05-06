@@ -1,0 +1,149 @@
+{
+    "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+
+    "formatter": {
+        "enabled": true,
+        "formatWithErrors": true,
+        "indentStyle": "space",
+        "indentWidth": 4,
+        "lineWidth": 140
+    },
+
+    "javascript": {
+        "formatter": {
+            "quoteStyle": "single",
+            "jsxQuoteStyle": "single"
+        },
+        "globals": ["__DEV__"]
+    },
+
+    "linter": {
+        "enabled": true,
+        "includes": ["./src/Core/**/*", "./src/Dep/**/*"],
+
+        "rules": {
+            "recommended": true,
+
+            "style": {
+                "useNamingConvention": {
+                    "level": "error",
+                    "options": {
+                        "strictCase": false,
+                        "conventions": [
+                            { "selector": { "kind": "objectLiteralMember" }, "match": ".*" },
+
+                            {
+                                "selector": { "kind": "variable" },
+                                "formats": ["snake_case", "camelCase", "CONSTANT_CASE"]
+                            },
+                            {
+                                "selector": { "kind": "functionParameter" },
+                                "formats": ["snake_case", "camelCase", "PascalCase"]
+                            },
+
+                            {
+                                "selector": { "kind": "function" },
+                                "formats": ["snake_case", "camelCase", "PascalCase"]
+                            },
+
+                            { "selector": { "kind": "class" }, "formats": ["PascalCase"] },
+                            {
+                                "selector": { "kind": "interface" },
+                                "formats": ["PascalCase"]
+                            },
+                            {
+                                "selector": { "kind": "typeAlias" },
+                                "formats": ["PascalCase", "snake_case"]
+                            },
+                            {
+                                "selector": { "kind": "namespace" },
+                                "formats": ["PascalCase"]
+                            },
+                            {
+                                "selector": { "kind": "typeParameter" },
+                                "formats": ["PascalCase"]
+                            },
+                            {
+                                "selector": { "kind": "classMethod", "modifiers": ["private"] },
+                                "match": "_?(.+)",
+                                "formats": ["snake_case", "camelCase"]
+                            },
+                            {
+                                "selector": { "kind": "classMethod", "modifiers": ["protected"] },
+                                "match": "_?(.+)",
+                                "formats": ["snake_case", "camelCase"]
+                            },
+                            { "selector": { "kind": "classMethod" }, "formats": ["snake_case", "camelCase"] },
+                            {
+                                "selector": { "kind": "classProperty", "modifiers": ["private"] },
+                                "match": "_?(.+)",
+                                "formats": ["snake_case", "camelCase"]
+                            },
+                            {
+                                "selector": { "kind": "classProperty", "modifiers": ["protected"] },
+                                "match": "_?(.+)",
+                                "formats": ["snake_case", "camelCase", "PascalCase"]
+                            },
+                            { "selector": { "kind": "classProperty" }, "formats": ["snake_case", "camelCase"] },
+
+                            { "selector": { "kind": "enum" }, "formats": ["PascalCase"] },
+                            {
+                                "selector": { "kind": "enumMember" },
+                                "formats": ["PascalCase", "CONSTANT_CASE"]
+                            },
+
+                            {
+                                "selector": { "kind": "importAlias" },
+                                "formats": ["camelCase", "PascalCase", "snake_case"]
+                            },
+                            {
+                                "selector": { "kind": "exportAlias" },
+                                "formats": ["camelCase", "PascalCase", "snake_case", "CONSTANT_CASE"]
+                            },
+                            {
+                                "selector": { "kind": "typeLike" },
+                                "formats": ["snake_case", "camelCase", "PascalCase"]
+                            },
+                            {
+                                "selector": { "kind": "objectLiteralProperty" },
+                                "formats": ["snake_case", "camelCase"]
+                            },
+                            {
+                                "selector": { "kind": "typeProperty" },
+                                "formats": ["snake_case", "camelCase"]
+                            },
+                            {
+                                "selector": { "kind": "typeMember" },
+                                "formats": ["snake_case", "camelCase"]
+                            }
+                        ]
+                    }
+                },
+
+                "useFilenamingConvention": {
+                    "level": "error",
+                    "options": {
+                        "filenameCases": ["PascalCase", "snake_case", "kebab-case", "camelCase"]
+                    }
+                },
+
+                "useSingleVarDeclarator": "off",
+                "noParameterAssign": "off",
+                "noNonNullAssertion": "off"
+            },
+
+            "complexity": {
+                "noUselessFragments": "off",
+                "noUselessConstructor": "off"
+            },
+
+            "suspicious": {
+                "noExplicitAny": "warn",
+                "noEmptyBlockStatements": "warn",
+                "noConsole": "warn"
+            },
+
+            "nursery": { "recommended": false }
+        }
+    }
+}

@@ -1,0 +1,35 @@
+import SmartDepend from '../Dep/SmartDepend.js';
+
+TEMP_IMPORT_LIST_ALL
+
+
+
+class ControlContainer {
+  private _smartDepend: SmartDepend;
+
+  TEMP_DECLARATIONS
+
+  constructor() {
+    this._smartDepend = new SmartDepend();
+
+    this._addModules();
+    this._addDepends();
+  }
+
+  public getMain(): CardWorld {
+    const spEntity = this._smartDepend.resolve(this._CardWorld) as CardWorld;
+
+    return spEntity;
+  }
+
+  private _addModules() {
+    TEMP_ADDMODULES
+  }
+
+  private _addDepends() {
+    TEMP_ADDDEPENDS
+  }
+
+}
+
+export default ControlContainer;
