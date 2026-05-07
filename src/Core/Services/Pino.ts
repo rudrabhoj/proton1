@@ -1,6 +1,6 @@
 import pino from 'pino';
 
-const APP_NAME = 'CardWorld';
+const APP_NAME = 'Proton 1';
 const LOG_LEVEL = 'debug';
 
 export class Pino {

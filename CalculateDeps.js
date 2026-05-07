@@ -254,7 +254,7 @@ const calDeps = new CalculateDeps();
 
 const sources = ['./src/Core'];
 const dest = './src/Dep/ControlContainer.ts';
-const singles = ['PixiLayer', 'Loop', 'SceneManager', 'ScaleManager', 'Pino'];
+const singles = ['PixiLayer', 'Loop', 'SceneManager', 'ScaleManager', 'Pino', 'RunState', 'ShopState', 'Inventory', 'DragManager'];
 const ignores = [];
 
 calDeps.refreshDeps(sources, dest, singles, ignores);

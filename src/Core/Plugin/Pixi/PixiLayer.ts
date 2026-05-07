@@ -62,6 +62,30 @@ export class PixiLayer {
     stage.addChild(newContainer);
   }
 
+  // Subscribe to stage-wide pointer move; coords are PIXI screen pixels.
+  // Returns an unbind function. Stage interactivity is enabled lazily.
+  public onGlobalPointerMove(cb: (x: number, y: number) => void): () => void {
+    if (!this._app) return () => {};
+    const stage = this._app.stage;
+    stage.eventMode = 'static';
+    const handler = (e: any) => cb(e.global.x, e.global.y);
+    stage.on('globalpointermove', handler);
+    return () => stage.off('globalpointermove', handler);
+  }
+
+  public onGlobalPointerUp(cb: (x: number, y: number) => void): () => void {
+    if (!this._app) return () => {};
+    const stage = this._app.stage;
+    stage.eventMode = 'static';
+    const handler = (e: any) => cb(e.global.x, e.global.y);
+    stage.on('pointerup', handler);
+    stage.on('pointerupoutside', handler);
+    return () => {
+      stage.off('pointerup', handler);
+      stage.off('pointerupoutside', handler);
+    };
+  }
+
   public createContainer(): Container {
     return new Container();
   }

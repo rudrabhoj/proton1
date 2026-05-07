@@ -1,101 +1,97 @@
+// Boot/start screen. Minimal — title + start button.
+
 import { EntityFactory } from "../../Kernel/GameObjects/EntityFactory";
-import { Sprite } from "../../Kernel/GameObjects/Sprite";
-import { Graphic } from "../../Kernel/GameObjects/Graphic";
-import { Button } from "../GameItems/Button";
 import { IScene } from "../../Kernel/GameObjects/IScene";
 import { ISceneManager } from "../../Plugin/ISceneManager";
-import { Background } from "../GameItems/Background";
-
-const FONT = "Maple Mono NF";
-const HACKER_GREEN = 0x00ff66;
+import { Button } from "../GameItems/Button";
+import { ShopState } from "../Logic/ShopState";
+import { Inventory } from "../Logic/Inventory";
+import { RunState } from "../Logic/RunState";
+import { rng_from_seed } from "../Logic/Rng";
+import { Theme } from "../Theme";
 
 export class Menu implements IScene {
   private _entityFactory: EntityFactory;
   private _sceneManager: ISceneManager;
-  private _card: Button;
-  private _mix: Button;
-  private _fire: Button;
-  private _background: Background;
-  private _logo: Sprite;
-  private _hackerBtn: Graphic | null;
+  private _button: Button;
+  private _shopState: ShopState;
+  private _inventory: Inventory;
+  private _runState: RunState;
 
-  constructor(entityFactory: EntityFactory, sceneManager: ISceneManager, button: Button, sprite: Sprite,
-  background: Background) {
+  constructor(entityFactory: EntityFactory, sceneManager: ISceneManager, button: Button,
+  shopState: ShopState, inventory: Inventory, runState: RunState) {
     this._entityFactory = entityFactory;
     this._sceneManager = sceneManager;
-    this._card = button;
-    this._mix = button;
-    this._fire = button;
-
-    this._background = background;
-    this._logo = sprite;
-    this._hackerBtn = null;
+    this._button = button;
+    this._shopState = shopState;
+    this._inventory = inventory;
+    this._runState = runState;
   }
 
-  public async preload(): Promise<void> {
+  public async preload(): Promise<void> {}
 
+  public create(): void {
+    this._build_title();
+    this._build_subtitle();
+    this._build_start_button();
   }
 
-  public create() {
-    this._initBackground();
-    this._initButtons();
-    this._initHackerButton();
-  }
+  public update(): void {}
+  public shutdown(): void {}
 
-  public update() {
-    this._background.update();
-  }
-
-  public shutdown() {
-    this._background.shutdown();
-  }
-
-  private _initBackground() {
-    this._background.init('main');
-    this._logo = this._entityFactory.sprite(162, 150, 'preload', 'logo');
-  }
-
-  private  _initButtons() {
-    this._card = this._card.createNew();
-    this._mix = this._mix.createNew();
-    this._fire = this._fire.createNew();
-
-    let startY = 750;
-
-    this._card.init(303, startY + 0, 'btn_card', () => { this._startLevel('CardMode'); });
-    this._mix.init(303, startY + 220, 'btn_mixed', () => { this._startLevel('MixMode'); });
-    this._fire.init(303, startY + 440, 'btn_fire', () => { this._startLevel('FireMode'); });
-  }
-
-  private _initHackerButton() {
-    const x = 303;
-    const y = 1410;
-    const w = 474;
-    const h = 130;
-
-    const g = this._entityFactory.graphic(x, y);
-    g.graphics.fillColor = 0x000000;
-    g.graphics.fillAlpha = 0.85;
-    g.graphics.borderColor = HACKER_GREEN;
-    g.graphics.borderWidth = 4;
-    g.graphics.borderStyle = 'dashed';
-    g.graphics.rect(0, 0, w, h);
-
-    g.enableInput();
-    g.input.addMouseUp(() => { this._startLevel('HackerMode'); });
-    this._hackerBtn = g;
-
-    const label = this._entityFactory.text(x + w / 2, y + h / 2, "> HACK_MODE", {
-      fontSize: 56,
-      fontFamily: FONT,
-      fill: HACKER_GREEN,
+  private _build_title(): void {
+    const t = this._entityFactory.text(540, 700, 'PROTON', {
+      fontSize: 130,
+      fontFamily: Theme.font,
+      fill: Theme.player.bright,
     });
-    label.position.anchorX = 0.5;
-    label.position.anchorY = 0.5;
+    t.position.anchorX = 0.5;
+    t.position.anchorY = 0.5;
+
+    const sub = this._entityFactory.text(540, 800, '/ 1 /', {
+      fontSize: 50,
+      fontFamily: Theme.font,
+      fill: Theme.player.line,
+    });
+    sub.position.anchorX = 0.5;
+    sub.position.anchorY = 0.5;
   }
 
-  private _startLevel(levelName: string) {
-    this._sceneManager.startScene(levelName);
+  private _build_subtitle(): void {
+    const lines = [
+      'breach 9 firewalls.',
+      'do not get traced.',
+      `connections remaining: ${this._runState.lives}`,
+    ];
+    for (let i = 0; i < lines.length; i++) {
+      const t = this._entityFactory.text(540, 1000 + i * 60, lines[i], {
+        fontSize: Theme.text.body,
+        fontFamily: Theme.font,
+        fill: Theme.textDim,
+      });
+      t.position.anchorX = 0.5;
+      t.position.anchorY = 0.5;
+    }
   }
 
+  private _build_start_button(): void {
+    const btn = this._button.createNew();
+    btn.init({
+      x: 240,
+      y: 1450,
+      w: 600,
+      h: 130,
+      label: `${Theme.glyph.ui.cont} start_run`,
+      tone: 'market',
+      variant: 'filled',
+      onClick: () => this._start_run(),
+    });
+  }
+
+  private _start_run(): void {
+    const rng = rng_from_seed(this._runState.seed);
+    this._shopState.init_first_shop(rng);
+    void this._inventory;  // wired but no init needed — fresh instance ready
+    this._sceneManager.startScene('Shop');
+  }
 }

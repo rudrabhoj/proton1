@@ -7,8 +7,8 @@ const pino = new Pino();
 pino.info(`PixiJS ${VERSION}`);
 
 const controlContainer = new ControlContainer();
-const cardWorld = controlContainer.getMain();
+const game = controlContainer.getMain();
 
-cardWorld.startGame().then(() => {
-  pino.info('Welcome to CardWorld!');
+game.startGame().then(() => {
+  pino.info('Proton 1: ready');
 });

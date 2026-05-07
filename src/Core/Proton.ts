@@ -1,45 +1,42 @@
 import { Config } from './Kernel/Control/Config';
 import { Loop } from './Kernel/Control/Loop';
+import { DragManager } from './Kernel/Control/DragManager';
 import { IScreen } from './Plugin/IScreen';
 import { ISceneManager } from './Plugin/ISceneManager';
 import { Loading } from './Game/Scene/Loading';
 import { Menu } from './Game/Scene/Menu';
-import { CardMode } from './Game/Scene/CardMode';
-import { MixMode } from './Game/Scene/MixMode';
-import { FireMode } from './Game/Scene/FireMode';
-import { HackerMode } from './Game/Scene/HackerMode';
-export class CardWorld {
+import { Shop } from './Game/Scene/Shop';
+import { Battle } from './Game/Scene/Battle';
+export class Proton {
   private _config: Config;
   private _loop: Loop;
+  private _dragManager: DragManager;
   private _screen: IScreen;
   private _sceneManager: ISceneManager;
 
   private _loading: Loading;
   private _menu: Menu;
-  private _cardMode: CardMode;
-  private _mixMode: MixMode;
-  private _fireMode: FireMode;
-  private _hackerMode: HackerMode;
+  private _shop: Shop;
+  private _battle: Battle;
 
-
-  constructor(config: Config, loop: Loop, screen: IScreen, sceneManager: ISceneManager,
-  loading: Loading, menu: Menu, cardMode: CardMode, mixMode: MixMode, fireMode: FireMode, hackerMode: HackerMode) {
+  constructor(config: Config, loop: Loop, dragManager: DragManager, screen: IScreen, sceneManager: ISceneManager,
+  loading: Loading, menu: Menu, shop: Shop, battle: Battle) {
     this._config = config;
     this._loop = loop;
+    this._dragManager = dragManager;
     this._screen = screen;
     this._sceneManager = sceneManager;
 
     this._loading = loading;
     this._menu = menu;
-    this._cardMode = cardMode;
-    this._mixMode = mixMode;
-    this._fireMode = fireMode;
-    this._hackerMode = hackerMode;
+    this._shop = shop;
+    this._battle = battle;
   }
 
   public async startGame() {
     await this._screen.startRenderer(document.documentElement.clientWidth, document.documentElement.clientHeight, true, false);
 
+    this._dragManager.init();
     this._startLoop();
     this._initScenes();
     this._startFirstScene();
@@ -54,15 +51,11 @@ export class CardWorld {
 
     this._sceneManager.addScene('Loading', this._loading);
     this._sceneManager.addScene('Menu', this._menu);
-    this._sceneManager.addScene('CardMode', this._cardMode);
-    this._sceneManager.addScene('MixMode', this._mixMode);
-    this._sceneManager.addScene('FireMode', this._fireMode);
-    this._sceneManager.addScene('HackerMode', this._hackerMode);
+    this._sceneManager.addScene('Shop', this._shop);
+    this._sceneManager.addScene('Battle', this._battle);
   }
 
   private _startFirstScene() {
     this._sceneManager.startScene('Loading');
   }
-  
 }
-

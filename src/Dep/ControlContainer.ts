@@ -1,18 +1,22 @@
 import SmartDepend from '../Dep/SmartDepend.js';
 
-import { CardWorld } from '../Core/CardWorld.js';
-import { Background } from '../Core/Game/GameItems/Background.js';
+import { Avatar } from '../Core/Game/GameItems/Avatar.js';
 import { Button } from '../Core/Game/GameItems/Button.js';
-import { Deck } from '../Core/Game/GameItems/Deck.js';
+import { CombatLog } from '../Core/Game/GameItems/CombatLog.js';
+import { Dossier } from '../Core/Game/GameItems/Dossier.js';
 import { FPSCounter } from '../Core/Game/GameItems/FPSCounter.js';
-import { TextImage } from '../Core/Game/GameItems/TextImage.js';
-import { CardMode } from '../Core/Game/Scene/CardMode.js';
-import { FireMode } from '../Core/Game/Scene/FireMode.js';
-import { HackerMode } from '../Core/Game/Scene/HackerMode.js';
+import { FirewallBar } from '../Core/Game/GameItems/FirewallBar.js';
+import { Slot } from '../Core/Game/GameItems/Slot.js';
+import { TerminalPanel } from '../Core/Game/GameItems/TerminalPanel.js';
+import { Inventory } from '../Core/Game/Logic/Inventory.js';
+import { RunState } from '../Core/Game/Logic/RunState.js';
+import { ShopState } from '../Core/Game/Logic/ShopState.js';
+import { Battle } from '../Core/Game/Scene/Battle.js';
 import { Loading } from '../Core/Game/Scene/Loading.js';
 import { Menu } from '../Core/Game/Scene/Menu.js';
-import { MixMode } from '../Core/Game/Scene/MixMode.js';
+import { Shop } from '../Core/Game/Scene/Shop.js';
 import { Config } from '../Core/Kernel/Control/Config.js';
+import { DragManager } from '../Core/Kernel/Control/DragManager.js';
 import { ExecTime } from '../Core/Kernel/Control/ExecTime.js';
 import { Loop } from '../Core/Kernel/Control/Loop.js';
 import { ParticleSystem } from '../Core/Kernel/Control/ParticleSystem.js';
@@ -41,6 +45,7 @@ import { PxText } from '../Core/Plugin/Pixi/PxText.js';
 import { SceneManager } from '../Core/Plugin/SceneManager.js';
 import { Screen } from '../Core/Plugin/Screen.js';
 import { TweenJs } from '../Core/Plugin/TweenJs.js';
+import { Proton } from '../Core/Proton.js';
 import { Pino } from '../Core/Services/Pino.js';
 
 
@@ -49,19 +54,23 @@ import { Pino } from '../Core/Services/Pino.js';
 class ControlContainer {
   private _smartDepend: SmartDepend;
 
-  protected _CardWorld: any;
-protected _Background: any;
+  protected _Avatar: any;
 protected _Button: any;
-protected _Deck: any;
+protected _CombatLog: any;
+protected _Dossier: any;
 protected _FPSCounter: any;
-protected _TextImage: any;
-protected _CardMode: any;
-protected _FireMode: any;
-protected _HackerMode: any;
+protected _FirewallBar: any;
+protected _Slot: any;
+protected _TerminalPanel: any;
+protected _Inventory: any;
+protected _RunState: any;
+protected _ShopState: any;
+protected _Battle: any;
 protected _Loading: any;
 protected _Menu: any;
-protected _MixMode: any;
+protected _Shop: any;
 protected _Config: any;
+protected _DragManager: any;
 protected _ExecTime: any;
 protected _Loop: any;
 protected _ParticleSystem: any;
@@ -90,6 +99,7 @@ protected _PxText: any;
 protected _SceneManager: any;
 protected _Screen: any;
 protected _TweenJs: any;
+protected _Proton: any;
 protected _Pino: any;
 
 
@@ -100,26 +110,30 @@ protected _Pino: any;
     this._addDepends();
   }
 
-  public getMain(): CardWorld {
-    const spEntity = this._smartDepend.resolve(this._CardWorld) as CardWorld;
+  public getMain(): Proton {
+    const spEntity = this._smartDepend.resolve(this._Proton) as Proton;
 
     return spEntity;
   }
 
   private _addModules() {
-    this._CardWorld = this._smartDepend.addModule(CardWorld, false);
-this._Background = this._smartDepend.addModule(Background, false);
+    this._Avatar = this._smartDepend.addModule(Avatar, false);
 this._Button = this._smartDepend.addModule(Button, false);
-this._Deck = this._smartDepend.addModule(Deck, false);
+this._CombatLog = this._smartDepend.addModule(CombatLog, false);
+this._Dossier = this._smartDepend.addModule(Dossier, false);
 this._FPSCounter = this._smartDepend.addModule(FPSCounter, false);
-this._TextImage = this._smartDepend.addModule(TextImage, false);
-this._CardMode = this._smartDepend.addModule(CardMode, false);
-this._FireMode = this._smartDepend.addModule(FireMode, false);
-this._HackerMode = this._smartDepend.addModule(HackerMode, false);
+this._FirewallBar = this._smartDepend.addModule(FirewallBar, false);
+this._Slot = this._smartDepend.addModule(Slot, false);
+this._TerminalPanel = this._smartDepend.addModule(TerminalPanel, false);
+this._Inventory = this._smartDepend.addModule(Inventory, true);
+this._RunState = this._smartDepend.addModule(RunState, true);
+this._ShopState = this._smartDepend.addModule(ShopState, true);
+this._Battle = this._smartDepend.addModule(Battle, false);
 this._Loading = this._smartDepend.addModule(Loading, false);
 this._Menu = this._smartDepend.addModule(Menu, false);
-this._MixMode = this._smartDepend.addModule(MixMode, false);
+this._Shop = this._smartDepend.addModule(Shop, false);
 this._Config = this._smartDepend.addModule(Config, false);
+this._DragManager = this._smartDepend.addModule(DragManager, true);
 this._ExecTime = this._smartDepend.addModule(ExecTime, false);
 this._Loop = this._smartDepend.addModule(Loop, true);
 this._ParticleSystem = this._smartDepend.addModule(ParticleSystem, false);
@@ -148,34 +162,25 @@ this._PxText = this._smartDepend.addModule(PxText, false);
 this._SceneManager = this._smartDepend.addModule(SceneManager, true);
 this._Screen = this._smartDepend.addModule(Screen, false);
 this._TweenJs = this._smartDepend.addModule(TweenJs, false);
+this._Proton = this._smartDepend.addModule(Proton, false);
 this._Pino = this._smartDepend.addModule(Pino, true);
 
   }
 
   private _addDepends() {
-    this._smartDepend.addDependency(this._CardWorld, this._Config);
-this._smartDepend.addDependency(this._CardWorld, this._Loop);
-this._smartDepend.addDependency(this._CardWorld, this._Screen);
-this._smartDepend.addDependency(this._CardWorld, this._SceneManager);
-this._smartDepend.addDependency(this._CardWorld, this._Loading);
-this._smartDepend.addDependency(this._CardWorld, this._Menu);
-this._smartDepend.addDependency(this._CardWorld, this._CardMode);
-this._smartDepend.addDependency(this._CardWorld, this._MixMode);
-this._smartDepend.addDependency(this._CardWorld, this._FireMode);
-this._smartDepend.addDependency(this._CardWorld, this._HackerMode);
-
-
-this._smartDepend.addDependency(this._Background, this._EntityFactory);
-this._smartDepend.addDependency(this._Background, this._Sprite);
-this._smartDepend.addDependency(this._Background, this._FPSCounter);
-this._smartDepend.addDependency(this._Background, this._Config);
+    this._smartDepend.addDependency(this._Avatar, this._EntityFactory);
 
 
 this._smartDepend.addDependency(this._Button, this._EntityFactory);
-this._smartDepend.addDependency(this._Button, this._Sprite);
 
 
-this._smartDepend.addDependency(this._Deck, this._EntityFactory);
+this._smartDepend.addDependency(this._CombatLog, this._EntityFactory);
+
+
+this._smartDepend.addDependency(this._Dossier, this._EntityFactory);
+this._smartDepend.addDependency(this._Dossier, this._SceneManager);
+this._smartDepend.addDependency(this._Dossier, this._TerminalPanel);
+this._smartDepend.addDependency(this._Dossier, this._Avatar);
 
 
 this._smartDepend.addDependency(this._FPSCounter, this._Pino);
@@ -184,34 +189,30 @@ this._smartDepend.addDependency(this._FPSCounter, this._Text);
 this._smartDepend.addDependency(this._FPSCounter, this._Screen);
 
 
-this._smartDepend.addDependency(this._TextImage, this._EntityFactory);
+this._smartDepend.addDependency(this._FirewallBar, this._EntityFactory);
 
 
-this._smartDepend.addDependency(this._CardMode, this._EntityFactory);
-this._smartDepend.addDependency(this._CardMode, this._SceneManager);
-this._smartDepend.addDependency(this._CardMode, this._ExecTime);
-this._smartDepend.addDependency(this._CardMode, this._Button);
-this._smartDepend.addDependency(this._CardMode, this._Sprite);
-this._smartDepend.addDependency(this._CardMode, this._Deck);
-this._smartDepend.addDependency(this._CardMode, this._Deck);
-this._smartDepend.addDependency(this._CardMode, this._Background);
+this._smartDepend.addDependency(this._Slot, this._EntityFactory);
 
 
-this._smartDepend.addDependency(this._FireMode, this._EntityFactory);
-this._smartDepend.addDependency(this._FireMode, this._SceneManager);
-this._smartDepend.addDependency(this._FireMode, this._Button);
-this._smartDepend.addDependency(this._FireMode, this._Background);
-this._smartDepend.addDependency(this._FireMode, this._ParticleSystem);
+this._smartDepend.addDependency(this._TerminalPanel, this._EntityFactory);
+this._smartDepend.addDependency(this._TerminalPanel, this._SceneManager);
 
 
-this._smartDepend.addDependency(this._HackerMode, this._EntityFactory);
-this._smartDepend.addDependency(this._HackerMode, this._SceneManager);
-this._smartDepend.addDependency(this._HackerMode, this._Button);
+this._smartDepend.addDependency(this._Battle, this._EntityFactory);
+this._smartDepend.addDependency(this._Battle, this._SceneManager);
+this._smartDepend.addDependency(this._Battle, this._Slot);
+this._smartDepend.addDependency(this._Battle, this._TerminalPanel);
+this._smartDepend.addDependency(this._Battle, this._Button);
+this._smartDepend.addDependency(this._Battle, this._FirewallBar);
+this._smartDepend.addDependency(this._Battle, this._CombatLog);
+this._smartDepend.addDependency(this._Battle, this._Dossier);
+this._smartDepend.addDependency(this._Battle, this._Inventory);
+this._smartDepend.addDependency(this._Battle, this._RunState);
 
 
 this._smartDepend.addDependency(this._Loading, this._GfxLoader);
 this._smartDepend.addDependency(this._Loading, this._Resource);
-this._smartDepend.addDependency(this._Loading, this._Background);
 this._smartDepend.addDependency(this._Loading, this._EntityFactory);
 this._smartDepend.addDependency(this._Loading, this._SceneManager);
 
@@ -219,16 +220,26 @@ this._smartDepend.addDependency(this._Loading, this._SceneManager);
 this._smartDepend.addDependency(this._Menu, this._EntityFactory);
 this._smartDepend.addDependency(this._Menu, this._SceneManager);
 this._smartDepend.addDependency(this._Menu, this._Button);
-this._smartDepend.addDependency(this._Menu, this._Sprite);
-this._smartDepend.addDependency(this._Menu, this._Background);
+this._smartDepend.addDependency(this._Menu, this._ShopState);
+this._smartDepend.addDependency(this._Menu, this._Inventory);
+this._smartDepend.addDependency(this._Menu, this._RunState);
 
 
-this._smartDepend.addDependency(this._MixMode, this._EntityFactory);
-this._smartDepend.addDependency(this._MixMode, this._ExecTime);
-this._smartDepend.addDependency(this._MixMode, this._SceneManager);
-this._smartDepend.addDependency(this._MixMode, this._Button);
-this._smartDepend.addDependency(this._MixMode, this._Background);
-this._smartDepend.addDependency(this._MixMode, this._TextImage);
+this._smartDepend.addDependency(this._Shop, this._EntityFactory);
+this._smartDepend.addDependency(this._Shop, this._SceneManager);
+this._smartDepend.addDependency(this._Shop, this._DragManager);
+this._smartDepend.addDependency(this._Shop, this._Pino);
+this._smartDepend.addDependency(this._Shop, this._Slot);
+this._smartDepend.addDependency(this._Shop, this._TerminalPanel);
+this._smartDepend.addDependency(this._Shop, this._Button);
+this._smartDepend.addDependency(this._Shop, this._FirewallBar);
+this._smartDepend.addDependency(this._Shop, this._ShopState);
+this._smartDepend.addDependency(this._Shop, this._Inventory);
+this._smartDepend.addDependency(this._Shop, this._RunState);
+
+
+this._smartDepend.addDependency(this._DragManager, this._Pino);
+this._smartDepend.addDependency(this._DragManager, this._PixiLayer);
 
 
 this._smartDepend.addDependency(this._Loop, this._Pino);
@@ -332,6 +343,17 @@ this._smartDepend.addDependency(this._SceneManager, this._ScaleManager);
 
 
 this._smartDepend.addDependency(this._Screen, this._PixiLayer);
+
+
+this._smartDepend.addDependency(this._Proton, this._Config);
+this._smartDepend.addDependency(this._Proton, this._Loop);
+this._smartDepend.addDependency(this._Proton, this._DragManager);
+this._smartDepend.addDependency(this._Proton, this._Screen);
+this._smartDepend.addDependency(this._Proton, this._SceneManager);
+this._smartDepend.addDependency(this._Proton, this._Loading);
+this._smartDepend.addDependency(this._Proton, this._Menu);
+this._smartDepend.addDependency(this._Proton, this._Shop);
+this._smartDepend.addDependency(this._Proton, this._Battle);
 
 
 

@@ -16,8 +16,8 @@ class ControlContainer {
     this._addDepends();
   }
 
-  public getMain(): CardWorld {
-    const spEntity = this._smartDepend.resolve(this._CardWorld) as CardWorld;
+  public getMain(): Proton {
+    const spEntity = this._smartDepend.resolve(this._Proton) as Proton;
 
     return spEntity;
   }
