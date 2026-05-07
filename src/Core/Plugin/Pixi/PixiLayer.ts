@@ -1,12 +1,15 @@
 import { Application, Assets, Container, Sprite, Texture, Ticker } from "pixi.js";
+import { Pino } from "../../Services/Pino";
 import { Resource } from "../../Kernel/Data/Resource";
 import { PxText } from "./PxText";
 export class PixiLayer {
+  private _pino: Pino;
   private _app: Application | null;
   private _pxText: PxText;
   private _pendingAliases: string[];
 
-  constructor(pxText: PxText) {
+  constructor(pino: Pino, pxText: PxText) {
+    this._pino = pino;
     this._app = null;
     this._pxText = pxText;
     this._pendingAliases = [];
@@ -133,7 +136,7 @@ export class PixiLayer {
       if (spritesheet && spritesheet.textures) {
         return spritesheet.textures[frame];
       } else {
-        console.error("NO spritesheet '%s' found!", sheet);
+        this._pino.error(`NO spritesheet '${sheet}' found!`);
         return null;
       }
     } else {

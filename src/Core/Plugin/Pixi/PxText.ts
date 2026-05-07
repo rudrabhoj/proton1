@@ -1,7 +1,9 @@
 import { PxPoint } from './PxPoint';
+import { Pino } from '../../Services/Pino';
 import { Text, Sprite, Renderer } from 'pixi.js';
 
 export class PxText {
+  private _pino: Pino;
   private _pxPoint: PxPoint;
   private _data: Sprite | null;
   private _rawText: Text| null;
@@ -10,7 +12,8 @@ export class PxText {
   protected _style: any;
   protected _fill: any;
 
-  constructor(pxPoint: PxPoint) {
+  constructor(pino: Pino, pxPoint: PxPoint) {
+    this._pino = pino;
     this._pxPoint = pxPoint;
     this._data = null;
     this._renderer = null;
@@ -19,7 +22,6 @@ export class PxText {
     this._anchor = null;
 
     this._rawText = null;
-
   }
 
 
@@ -117,7 +119,7 @@ export class PxText {
   }
 
   createNew(): PxText {
-    return new PxText(this._pxPoint.createNew(1, 1, () => {}, () => {}));
+    return new PxText(this._pino, this._pxPoint.createNew(1, 1, () => {}, () => {}));
   }
 
   public init(text: string, renderer: Renderer, style: any = undefined) {
@@ -150,7 +152,7 @@ export class PxText {
     if (this._data != null) {
       return this._data;
     } else {
-      console.error("Can not access data before initializing text!");
+      this._pino.error("Can not access data before initializing text!");
 
       return dummy as Sprite;
     }
@@ -164,7 +166,7 @@ export class PxText {
     if(this._data){
       return this._data.alpha;
     }
-    console.warn('cannot return alpha for object that is not initialized!');
+    this._pino.warn("cannot return alpha for object that is not initialized!");
     return -1;
   }
 
@@ -182,7 +184,7 @@ export class PxText {
     if (this._data != null) {
       return this._data.x;
     } else {
-      console.error("Can not access data before initializing text!");
+      this._pino.error("Can not access data before initializing text!");
 
       return 0;
     }
@@ -192,7 +194,7 @@ export class PxText {
     if (this._data != null) {
       return this._data.y;
     } else {
-      console.error("Can not access data before initializing text!");
+      this._pino.error("Can not access data before initializing text!");
 
       return 0;
     }
@@ -202,7 +204,7 @@ export class PxText {
     if (this._data != null) {
       this._data.x = xval;
     } else {
-      console.error("Can not access data before initializing text!");
+      this._pino.error("Can not access data before initializing text!");
     }
   }
 
@@ -210,7 +212,7 @@ export class PxText {
     if (this._data != null) {
       this._data.y = yval;
     } else {
-      console.error("Can not access data before initializing text!");
+      this._pino.error("Can not access data before initializing text!");
     }
   }
 
@@ -230,7 +232,7 @@ export class PxText {
     if (this._data != null && this._renderer != null && this._rawText != null) {
       this._data.texture = this._renderer.generateTexture(this._rawText);
     } else {
-      console.error("Can not update text texture before init!");
+      this._pino.error("Can not update text texture before init!");
     }
   }
 

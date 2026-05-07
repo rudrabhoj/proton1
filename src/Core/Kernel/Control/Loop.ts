@@ -1,5 +1,7 @@
+import { Pino } from "../../Services/Pino";
 import { FunObj } from "../Data/FunObj";
 export class Loop {
+  private _pino: Pino;
   private _funObj: FunObj;
   private _fList: FunObj[];
   private _boundExecuteAll: any;
@@ -7,8 +9,9 @@ export class Loop {
   private _lastTime: number;
   private _delay: number;
   private _oldDelay: number;
-  
-  constructor(funObj: FunObj) {
+
+  constructor(pino: Pino, funObj: FunObj) {
+    this._pino = pino;
     this._funObj = funObj;
 
     this._fList = [];
@@ -18,8 +21,6 @@ export class Loop {
     this._oldDelay = 0;
 
     this._boundExecuteAll = this._executeAll.bind(this);
-
-    //console.log("Loop allocated");
   }
 
   public addFunction(f: Function, context: any) {
@@ -28,21 +29,18 @@ export class Loop {
     if (fObj == null) {
       let o = this._newFunObj(f, context);
       this._fList.push(o);
-      //console.log(`%csuccessfully added listener with context %s to Loop`, 'color:blue', context);
     } else {
-      console.error("trying to add function %s twice with identical context: ", f, context);
+      this._pino.error(`trying to add function ${String(f)} twice with identical context: ${String(context)}`);
     }
   }
 
   public removeFunction(f: Function, context: any) {
-    //console.log(this._fList);
     let i = this._getFunObj(f, context);
 
     if (i != null) {
       this._fList.splice(this._fList.indexOf(i), 1);
-      //console.log(`%cremoved listener with context %s`, 'color:green', context);
     } else {
-      console.warn("Did not find loop listener with context %s, so cannot remove", context);
+      this._pino.warn(`Did not find loop listener with context ${String(context)}, so cannot remove`);
     }
   }
 
@@ -64,7 +62,7 @@ export class Loop {
       if (f == this._fList[c].function && this._fList[c].context == context) return this._fList[c];
     }
 
-    console.warn("Did not find loop listener with context %", context);
+    this._pino.warn(`Did not find loop listener with context ${String(context)}`);
     return null;
   }
 

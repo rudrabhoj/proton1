@@ -18,13 +18,19 @@ function calculateDepsPlugin(): Plugin {
         },
         configureServer(server) {
             const watched = path.resolve('src/Core');
+            const generated = path.resolve('src/Dep/ControlContainer.ts');
             server.watcher.add(watched);
-            server.watcher.on('add', (file) => {
-                if (file.startsWith(watched) && file.endsWith('.ts')) run();
-            });
-            server.watcher.on('unlink', (file) => {
-                if (file.startsWith(watched) && file.endsWith('.ts')) run();
-            });
+
+            const handle = (file: string) => {
+                if (!file.startsWith(watched)) return;
+                if (!file.endsWith('.ts')) return;
+                if (file === generated) return;
+                run();
+            };
+
+            server.watcher.on('add', handle);
+            server.watcher.on('change', handle);
+            server.watcher.on('unlink', handle);
         },
     };
 }

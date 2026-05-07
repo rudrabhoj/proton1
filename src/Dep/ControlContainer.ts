@@ -38,6 +38,7 @@ import { PxText } from '../Core/Plugin/Pixi/PxText.js';
 import { SceneManager } from '../Core/Plugin/SceneManager.js';
 import { Screen } from '../Core/Plugin/Screen.js';
 import { TweenJs } from '../Core/Plugin/TweenJs.js';
+import { Pino } from '../Core/Services/Pino.js';
 
 
 
@@ -83,6 +84,7 @@ protected _PxText: any;
 protected _SceneManager: any;
 protected _Screen: any;
 protected _TweenJs: any;
+protected _Pino: any;
 
 
   constructor() {
@@ -137,6 +139,7 @@ this._PxText = this._smartDepend.addModule(PxText, false);
 this._SceneManager = this._smartDepend.addModule(SceneManager, true);
 this._Screen = this._smartDepend.addModule(Screen, false);
 this._TweenJs = this._smartDepend.addModule(TweenJs, false);
+this._Pino = this._smartDepend.addModule(Pino, true);
 
   }
 
@@ -165,6 +168,7 @@ this._smartDepend.addDependency(this._Button, this._Sprite);
 this._smartDepend.addDependency(this._Deck, this._EntityFactory);
 
 
+this._smartDepend.addDependency(this._FPSCounter, this._Pino);
 this._smartDepend.addDependency(this._FPSCounter, this._EntityFactory);
 this._smartDepend.addDependency(this._FPSCounter, this._Text);
 this._smartDepend.addDependency(this._FPSCounter, this._Screen);
@@ -212,6 +216,7 @@ this._smartDepend.addDependency(this._MixMode, this._Background);
 this._smartDepend.addDependency(this._MixMode, this._TextImage);
 
 
+this._smartDepend.addDependency(this._Loop, this._Pino);
 this._smartDepend.addDependency(this._Loop, this._FunObj);
 
 
@@ -276,15 +281,21 @@ this._smartDepend.addDependency(this._Text, this._SceneManager);
 this._smartDepend.addDependency(this._Text, this._ScaleManager);
 
 
+this._smartDepend.addDependency(this._AbstractGameObject, this._Pino);
+
+
 this._smartDepend.addDependency(this._GfxLoader, this._PixiLayer);
 
 
+this._smartDepend.addDependency(this._PixiLayer, this._Pino);
 this._smartDepend.addDependency(this._PixiLayer, this._PxText);
 
 
+this._smartDepend.addDependency(this._PxText, this._Pino);
 this._smartDepend.addDependency(this._PxText, this._PxPoint);
 
 
+this._smartDepend.addDependency(this._SceneManager, this._Pino);
 this._smartDepend.addDependency(this._SceneManager, this._PixiLayer);
 this._smartDepend.addDependency(this._SceneManager, this._SceneData);
 this._smartDepend.addDependency(this._SceneManager, this._Loop);

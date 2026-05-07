@@ -1,17 +1,18 @@
-import { Sprite } from "../../Kernel/GameObjects/Sprite";
+import { Pino } from "../../Services/Pino";
 import { EntityFactory } from "../../Kernel/GameObjects/EntityFactory";
-import {Positions, Sizes} from "../../Kernel/Data/ScaleMode";
-import { Config } from "../../Kernel/Control/Config";
+import {Positions} from "../../Kernel/Data/ScaleMode";
 import { Text } from "../../Kernel/GameObjects/Text";
 import { IScreen } from "../../Plugin/IScreen";
 export class FPSCounter {
+  private _pino: Pino;
   private _entityFactory: EntityFactory;
   private _screen: IScreen;
   private _text: Text;
   private _tickerCounter: number;
   private _showPerTicker: number;
 
-  constructor(entityFactory: EntityFactory, text: Text, screen: IScreen) {
+  constructor(pino: Pino, entityFactory: EntityFactory, text: Text, screen: IScreen) {
+    this._pino = pino;
     this._entityFactory = entityFactory;
     this._text = text;
     this._screen = screen;
@@ -32,7 +33,7 @@ export class FPSCounter {
   }
 
   public createNew(): FPSCounter {
-    return new FPSCounter(this._entityFactory, this._text.createNew(), this._screen);
+    return new FPSCounter(this._pino, this._entityFactory, this._text.createNew(), this._screen);
   }
 
   public update() {
@@ -42,7 +43,7 @@ export class FPSCounter {
       let fpsLabel = "FPS: " + this._screen.fps.toFixed(2);
       this._text.label.text = fpsLabel;
       this._tickerCounter = 0;
-      console.log("FPS calculated ", fpsLabel);
+      this._pino.info(`FPS calculated ${fpsLabel}`);
     }
   }
 }

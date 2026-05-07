@@ -1,7 +1,9 @@
+import { Pino } from "../Services/Pino";
 import { IAbstractGameObject } from "./IAbstractGameObject";
 //Place holder object allocated by default to avoid IAbstractGameObject | null situations
 
 export class AbstractGameObject implements IAbstractGameObject {
+  private _pino: Pino;
   get x(): number {
     this._denyAccess();
     return 0;
@@ -135,12 +137,12 @@ export class AbstractGameObject implements IAbstractGameObject {
   }
 
 
-  constructor() {
-
+  constructor(pino: Pino) {
+    this._pino = pino;
   }
 
   public createNew(): IAbstractGameObject {
-    return new AbstractGameObject();
+    return new AbstractGameObject(this._pino);
   }
 
   public on(eventName: string, foo: Function) {
@@ -148,7 +150,7 @@ export class AbstractGameObject implements IAbstractGameObject {
   }
 
   private _denyAccess() {
-    console.error("Can not access the AbstractGameObject!");
+    this._pino.error("Can not access the AbstractGameObject!");
   }
 }
 

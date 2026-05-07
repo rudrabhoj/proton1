@@ -1,3 +1,4 @@
+import { Pino } from "../Services/Pino";
 import { SceneData } from "../Kernel/Data/SceneData";
 import { IScene } from "../Kernel/GameObjects/IScene";
 import { PixiLayer } from "./Pixi/PixiLayer";
@@ -5,6 +6,7 @@ import { Loop } from "../Kernel/Control/Loop";
 import { IAbstractGameObject } from "./IAbstractGameObject";
 import { ScaleManager } from "../Kernel/Control/ScaleManager";
 export class SceneManager {
+  private _pino: Pino;
   private _pixiLayer: PixiLayer;
   private _sceneData: SceneData;
   private _loop: Loop;
@@ -15,7 +17,8 @@ export class SceneManager {
 
   private _sceneList:SceneData[];
 
-  constructor(pixiLayer: PixiLayer, sceneData: SceneData, loop: Loop, scaleManager: ScaleManager) {
+  constructor(pino: Pino, pixiLayer: PixiLayer, sceneData: SceneData, loop: Loop, scaleManager: ScaleManager) {
+    this._pino = pino;
     this._pixiLayer = pixiLayer;
     this._sceneData = sceneData;
     this._scaleManager = scaleManager;
@@ -26,8 +29,6 @@ export class SceneManager {
     this._canUpdate = false;
 
     this._sceneList = [];
-
-    //console.log("SceneManager allocated!");
   }
 
   public init() {
@@ -41,7 +42,7 @@ export class SceneManager {
     if (!this._exists(name)) {
       this._addScene(name, scene);
     } else {
-      console.error("Scene name '%s' already exists!", name);
+      this._pino.error(`Scene name '${name}' already exists!`);
     }
   }
 
@@ -49,10 +50,9 @@ export class SceneManager {
     let scn = this._getScene(name);
 
     if (scn) {
-      //console.log("Starting Scene", scn);
       this._handleSceneStart(scn);
     } else {
-      console.error("No scene with the name '%s' found", name);
+      this._pino.error(`No scene with the name '${name}' found`);
     }
   }
 
