@@ -7,9 +7,9 @@ export class ScaleManager {
 
   }
 
-  public init(renderer: any) {
+  public init(onResize: (width: number, height: number) => void) {
     window.addEventListener("resize", () => {
-      renderer.resize(document.documentElement.clientWidth, document.documentElement.clientHeight);
+      onResize(document.documentElement.clientWidth, document.documentElement.clientHeight);
 
       this._onUpdate();
     });

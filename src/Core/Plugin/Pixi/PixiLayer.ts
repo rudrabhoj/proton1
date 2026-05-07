@@ -1,6 +1,5 @@
 import * as PIXI from "pixi.js"
 import { Resource } from "../../Kernel/Data/Resource";
-import type { Dict } from '@pixi/utils';
 import { PxText } from "./PxText";
 export class PixiLayer {
   private _app: PIXI.Application | null;
@@ -11,24 +10,8 @@ export class PixiLayer {
     this._pxText = pxText;
   }
 
-  get renderer(): PIXI.Renderer | PIXI.AbstractRenderer | null {
-    if (this._app) {
-      return this._app.renderer;
-    } else {
-      return null;
-    }
-  }
-
   get fps(): number {
     return PIXI.Ticker.shared.FPS;
-  }
-
-  get stage(): PIXI.Container | null {
-    if (this._app) {
-      return this._app.stage;
-    } else {
-      return null;
-    }
   }
 
   public createApplication(width: number, height: number, antialias: boolean, transparent: boolean) {
@@ -45,6 +28,29 @@ export class PixiLayer {
     document.body.appendChild(app.view);
 
     this._app = app;
+  }
+
+  public resize(width: number, height: number) {
+    if (this._app) {
+      this._app.renderer.resize(width, height);
+    }
+  }
+
+  public swapSceneRoot(newContainer: any) {
+    if (!this._app) return;
+
+    let stage = this._app.stage;
+    let oldRoot = stage.children[0] as PIXI.Container;
+
+    if (oldRoot) {
+      for (let c = 0; c < oldRoot.children.length; c++) {
+        let obj = oldRoot.children[c];
+        obj.destroy();
+      }
+    }
+
+    stage.removeChildren();
+    stage.addChild(newContainer);
   }
 
   public createContainer(): PIXI.Container {
@@ -100,15 +106,14 @@ export class PixiLayer {
     this._addResources(atlasList);
   }
 
-  public async downloadResources(onProgress: Function, onComplete: Function): Promise<Dict<PIXI.LoaderResource>> {
-    return new Promise((resolve: Function, reject: Function) => {
+  public async downloadResources(onProgress: Function, onComplete: Function): Promise<void> {
+    return new Promise((resolve: Function) => {
       PIXI.Loader.shared.onProgress.once(() => {
         onProgress(PIXI.Loader.shared.progress);
       });
 
-      PIXI.Loader.shared.load((loader: PIXI.Loader, resources: Dict<PIXI.LoaderResource>) => {
-        resolve(resources);
-
+      PIXI.Loader.shared.load(() => {
+        resolve();
         onComplete();
       });
     });

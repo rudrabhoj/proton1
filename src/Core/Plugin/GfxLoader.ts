@@ -1,6 +1,3 @@
-import * as PIXI from "pixi.js"
-import type { Dict } from '@pixi/utils';
-
 import { PixiLayer } from "./Pixi/PixiLayer";
 import { Resource } from "../Kernel/Data/Resource";
 export class GfxLoader {
@@ -14,8 +11,7 @@ export class GfxLoader {
     this._pixiLayer.addImages(resList);
   }
 
-  public async download(onProgress: Function, onComplete: Function): Promise<Dict<PIXI.LoaderResource>> {
+  public async download(onProgress: Function, onComplete: Function): Promise<void> {
     return this._pixiLayer.downloadResources(onProgress, onComplete);
   }
 }
-

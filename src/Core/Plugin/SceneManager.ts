@@ -3,7 +3,6 @@ import { IScene } from "../Kernel/GameObjects/IScene";
 import { PixiLayer } from "./Pixi/PixiLayer";
 import { Loop } from "../Kernel/Control/Loop";
 import { IAbstractGameObject } from "./IAbstractGameObject";
-import {Container} from "pixi.js";
 import { ScaleManager } from "../Kernel/Control/ScaleManager";
 export class SceneManager {
   private _pixiLayer: PixiLayer;
@@ -34,7 +33,7 @@ export class SceneManager {
   public init() {
     this._loop.addFunction(this._update, this);
 
-    this._scaleManager.init(this._pixiLayer.renderer);
+    this._scaleManager.init((w: number, h: number) => this._pixiLayer.resize(w, h));
     //console.log("Scale manager started");
   }
 
@@ -88,22 +87,7 @@ export class SceneManager {
       this._currentScene.scene.shutdown();
     }
 
-    if (this._pixiLayer.stage) {
-
-      //Destroy old objects
-      let level = (this._pixiLayer.stage.children[0] as Container);
-
-      if (level) {
-        for (let c = 0; c < level.children.length; c++) {
-          let obj = level.children[c];
-          obj.destroy();
-        }
-      }
-      
-      
-      this._pixiLayer.stage.removeChildren();
-      this._pixiLayer.stage.addChild(scene.container);
-    }
+    this._pixiLayer.swapSceneRoot(scene.container);
 
     this._canUpdate = false;
     this._currentScene = scene;
