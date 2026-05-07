@@ -140,6 +140,9 @@ export class PxGraphics implements IGraphics {
   get tint(): number { return this._live.tint; }
   set tint(v: number) { this._live.tint = v; }
 
+  get zIndex(): number { return this._live.zIndex; }
+  set zIndex(v: number) { this._live.zIndex = v; }
+
   get width(): number { return this._live.width; }
   set width(v: number) { this._live.width = v; }
 

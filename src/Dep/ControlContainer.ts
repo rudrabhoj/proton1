@@ -241,6 +241,8 @@ this._smartDepend.addDependency(this._Shop, this._RunState);
 
 this._smartDepend.addDependency(this._DragManager, this._Pino);
 this._smartDepend.addDependency(this._DragManager, this._PixiLayer);
+this._smartDepend.addDependency(this._DragManager, this._EntityFactory);
+this._smartDepend.addDependency(this._DragManager, this._ScaleManager);
 
 
 this._smartDepend.addDependency(this._Loop, this._Pino);

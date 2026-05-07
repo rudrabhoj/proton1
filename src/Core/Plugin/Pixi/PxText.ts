@@ -94,6 +94,9 @@ export class PxText {
   get tint(): number { return this._data ? this._data.tint : 0xffffff; }
   set tint(v: number) { if (this._data) this._data.tint = v; }
 
+  get zIndex(): number { return this._data ? this._data.zIndex : 0; }
+  set zIndex(v: number) { if (this._data) this._data.zIndex = v; }
+
   get angle(): number { return this._data ? this._data.angle : 0; }
   set angle(v: number) { if (this._data) this._data.angle = v; }
 

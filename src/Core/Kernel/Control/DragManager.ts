@@ -14,17 +14,36 @@
 //
 // Touch-compatible (PIXI v8 unifies pointer + touch).
 // Payload carries its own colors + glyph + font, so DragManager stays theme-agnostic.
+//
+// Ghost is built from real engine entities (Graphic + Text via EntityFactory)
+// so it auto-scales through Position/Display/Scale and lives in the scene
+// container like every other game object. We don't poke raw PIXI here — the
+// previous version did, and every subsequent bug (wrong size at non-1.0
+// viewport ratios, anchor-pivot offset, mid-resize stuck size) was a
+// workaround for skipping the engine.
 
-import { Container, Graphics, Text } from 'pixi.js';
 import { Pino } from "../../Services/Pino";
 import { PixiLayer } from "../../Plugin/Pixi/PixiLayer";
+import { EntityFactory } from "../GameObjects/EntityFactory";
+import { Graphic } from "../GameObjects/Graphic";
+import { Text } from "../GameObjects/Text";
+import { ScaleManager } from "./ScaleManager";
 
 const DRAG_THRESHOLD_PX = 8;
-// Ghost is the cursor-followed preview of the dragged item. Sized to be
-// roughly the same as the slot's glyph (slot is 130 with a 71 glyph), so it
-// reads as the icon being carried, not a whole slot moving around.
-const GHOST_SIZE = 78;
-const GHOST_GLYPH_SIZE = 56;
+// Ghost is the slot itself, picked up. Same 130 box, same 71 glyph as the
+// source slot (Slot uses size * 0.55 = 71 for its glyph). Both ghost and
+// slot go through the engine's scale pipeline so they render at the same
+// physical size at every viewport — picking the item up doesn't change
+// its size, only its position.
+const GHOST_SIZE = 130;
+const GHOST_GLYPH_SIZE = 71;
+// zIndex high enough to sit above any in-scene overlay. Scene containers
+// have sortableChildren = true, so children with this zIndex render on top
+// of regular children (zIndex 0) regardless of addChild order.
+const GHOST_Z_INDEX = 1000;
+// Logical viewport (must match Config.width / Config.height).
+const LOGICAL_W = 1080;
+const LOGICAL_H = 1920;
 
 export type DragPayload = {
   source_id: string;
@@ -52,27 +71,41 @@ interface ArmedDrag {
 export class DragManager {
   private _pino: Pino;
   private _pixiLayer: PixiLayer;
+  private _entityFactory: EntityFactory;
+  private _scaleManager: ScaleManager;
 
   private _targets: DropTarget[];
   private _armed: ArmedDrag | null;
   private _payload: DragPayload | null;
   private _hovered: DropTarget | null;
   private _committed: boolean;
-  private _ghost: Container | null;
+  // Ghost is two engine entities, not a raw Container. _ghost_bg is the
+  // dashed/solid box; _ghost_glyph is the centered glyph text. They live in
+  // the active scene's container and inherit its scale.
+  private _ghost_bg: Graphic | null;
+  private _ghost_glyph: Text | null;
+  // Cache the font so retint_ghost can reassign Label.style with a complete
+  // TextStyle object (Label._updateForeignObject pushes the whole style at
+  // once). Glyph text itself stays inside the Text entity's Label.
+  private _ghost_glyph_font: string;
 
   private _unbind_move: (() => void) | null;
   private _unbind_up: (() => void) | null;
   private _initialized: boolean;
 
-  constructor(pino: Pino, pixiLayer: PixiLayer) {
+  constructor(pino: Pino, pixiLayer: PixiLayer, entityFactory: EntityFactory, scaleManager: ScaleManager) {
     this._pino = pino;
     this._pixiLayer = pixiLayer;
+    this._entityFactory = entityFactory;
+    this._scaleManager = scaleManager;
     this._targets = [];
     this._armed = null;
     this._payload = null;
     this._hovered = null;
     this._committed = false;
-    this._ghost = null;
+    this._ghost_bg = null;
+    this._ghost_glyph = null;
+    this._ghost_glyph_font = '';
     this._unbind_move = null;
     this._unbind_up = null;
     this._initialized = false;
@@ -138,29 +171,25 @@ export class DragManager {
     this._armed = null;
   }
 
-  // Re-skin the ghost mid-drag. Used when a drop target wants to telegraph
-  // "your dragged item lands here" by recoloring the cursor visual (e.g. the
-  // shop's sell zone changes the ghost from player-green-dashed to
-  // market-yellow-solid). Border, fill, AND glyph all switch tone — the
-  // dragged item should clearly read as part of the destination palette.
+  // Re-skin the ghost mid-drag. Border + fill go through the IGraphics
+  // setters (which redraw via PxGraphics._redraw); glyph color is updated by
+  // re-assigning Label.style which triggers Label._updateForeignObject and
+  // pushes the new TextStyle to PIXI Text.
   public retint_ghost(bg_color: number, border_color: number, dashed: boolean): void {
-    if (!this._ghost) return;
-    const bg = this._ghost.children[0] as Graphics | undefined;
-    if (!bg || typeof (bg as any).clear !== 'function') return;
-    const half = GHOST_SIZE / 2;
-    bg.clear();
-    bg.rect(-half, -half, GHOST_SIZE, GHOST_SIZE).fill({ color: bg_color, alpha: 0.6 });
-    if (dashed) {
-      draw_dashed_rect(bg, -half, -half, GHOST_SIZE, GHOST_SIZE, border_color, 4);
-    } else {
-      bg.rect(-half, -half, GHOST_SIZE, GHOST_SIZE).stroke({ color: border_color, width: 4 });
+    if (this._ghost_bg) {
+      const g = this._ghost_bg.graphics;
+      g.fillColor = bg_color;
+      g.fillAlpha = 0.6;
+      g.borderColor = border_color;
+      g.borderWidth = 4;
+      g.borderStyle = dashed ? 'dashed' : 'solid';
     }
-    // Recolor the glyph too. PIXI v8's TextStyle has a setter on `fill` that
-    // emits an internal update, so the next render picks up the new color
-    // without us having to rebuild the Text object.
-    const txt = this._ghost.children[1] as Text | undefined;
-    if (txt && txt.style) {
-      txt.style.fill = border_color;
+    if (this._ghost_glyph) {
+      this._ghost_glyph.label.style = {
+        fontSize: GHOST_GLYPH_SIZE,
+        fontFamily: this._ghost_glyph_font,
+        fill: border_color,
+      };
     }
   }
 
@@ -177,10 +206,37 @@ export class DragManager {
       return;
     }
 
-    if (this._ghost) {
-      this._ghost.position.set(x, y);
+    // Cursor events are screen pixels. Entity positions are logical. Convert
+    // and assign — the engine's Scale takes care of the per-frame physical
+    // placement, including any mid-drag viewport resize.
+    const lp = this._screen_to_logical(x, y);
+    if (this._ghost_bg) {
+      this._ghost_bg.position.x = lp.x;
+      this._ghost_bg.position.y = lp.y;
+    }
+    if (this._ghost_glyph) {
+      this._ghost_glyph.position.x = lp.x;
+      this._ghost_glyph.position.y = lp.y;
     }
     this._update_hovered_target(x, y);
+  }
+
+  // Inverse of Scale.placeX/placeY for the default gameplay container mode
+  // (centered letterbox). Same letterbox math as Scale._getRatio +
+  // _getContainerXStart, but inlined here so DragManager doesn't have to
+  // borrow a Scale instance just to read its ratio.
+  private _screen_to_logical(sx: number, sy: number): { x: number; y: number } {
+    const cur_x = document.documentElement.clientWidth;
+    const cur_y = document.documentElement.clientHeight;
+    const r1 = cur_y / LOGICAL_H;
+    const r2 = cur_x / LOGICAL_W;
+    const ratio = r1 * LOGICAL_W <= cur_x ? r1 : r2;
+    const base_x = (cur_x - LOGICAL_W * ratio) / 2;
+    const base_y = (cur_y - LOGICAL_H * ratio) / 2;
+    return {
+      x: (sx - base_x) / ratio,
+      y: (sy - base_y) / ratio,
+    };
   }
 
   private _commit_drag(x: number, y: number): void {
@@ -232,11 +288,20 @@ export class DragManager {
   }
 
   private _tear_down(): void {
-    if (this._ghost) {
-      this._pixiLayer.removeOverlay(this._ghost);
-      this._ghost.destroy({ children: true });
-      this._ghost = null;
+    // Destroy the ghost entities. Each has a ScaleManager registration that
+    // would otherwise null-deref on the next resize, plus a foreign PIXI
+    // object that needs explicit destroy.
+    if (this._ghost_bg) {
+      this._scaleManager.removeEntity(this._ghost_bg);
+      this._ghost_bg.display.destroy();
+      this._ghost_bg = null;
     }
+    if (this._ghost_glyph) {
+      this._scaleManager.removeEntity(this._ghost_glyph);
+      this._ghost_glyph.display.destroy();
+      this._ghost_glyph = null;
+    }
+    this._ghost_glyph_font = '';
     this._armed = null;
     this._payload = null;
     this._hovered = null;
@@ -269,64 +334,37 @@ export class DragManager {
     return null;
   }
 
-  // Ghost: dashed-border square + glyph centered at pointer.
-  private _build_ghost(payload: DragPayload, x: number, y: number): void {
-    const container = new Container();
-    container.position.set(x, y);
-    container.eventMode = 'none';
-
+  // Build the ghost as two engine entities centered on the cursor. Position
+  // is logical, so PIXI scaling at the current viewport ratio is automatic.
+  // Both entities have anchor (0.5, 0.5) so their position IS the centerline.
+  private _build_ghost(payload: DragPayload, screen_x: number, screen_y: number): void {
+    const lp = this._screen_to_logical(screen_x, screen_y);
     const half = GHOST_SIZE / 2;
-    const bg = new Graphics();
-    bg
-      .rect(-half, -half, GHOST_SIZE, GHOST_SIZE)
-      .fill({ color: payload.bg_color, alpha: 0.6 });
-    draw_dashed_rect(bg, -half, -half, GHOST_SIZE, GHOST_SIZE, payload.border_color, 4);
-    container.addChild(bg);
 
-    const txt = new Text({
-      text: payload.glyph,
-      style: {
-        fontSize: GHOST_GLYPH_SIZE,
-        fontFamily: payload.font,
-        fill: payload.border_color,
-      },
+    const bg = this._entityFactory.graphic(lp.x, lp.y);
+    bg.position.anchorX = 0.5;
+    bg.position.anchorY = 0.5;
+    bg.graphics.anchor.set(0.5, 0.5);
+    bg.graphics.fillColor = payload.bg_color;
+    bg.graphics.fillAlpha = 0.6;
+    bg.graphics.borderColor = payload.border_color;
+    bg.graphics.borderWidth = 4;
+    bg.graphics.borderStyle = 'dashed';
+    bg.graphics.rect(-half, -half, GHOST_SIZE, GHOST_SIZE);
+    bg.display.zIndex = GHOST_Z_INDEX;
+    this._ghost_bg = bg;
+
+    const glyph = this._entityFactory.text(lp.x, lp.y, payload.glyph, {
+      fontSize: GHOST_GLYPH_SIZE,
+      fontFamily: payload.font,
+      fill: payload.border_color,
     });
-    txt.anchor.set(0.5, 0.5);
-    container.addChild(txt);
-
-    this._pixiLayer.addOverlay(container);
-    this._ghost = container;
-  }
-}
-
-// -- helpers (file-local) ------------------------------------------------
-
-function draw_dashed_rect(g: Graphics, x: number, y: number, w: number, h: number, color: number, width: number): void {
-  const dash_len = width * 4;
-  const gap_len = width * 3;
-  const corners: Array<[number, number]> = [
-    [x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y],
-  ];
-  for (let i = 0; i < 4; i++) {
-    draw_dashed_line(g, corners[i][0], corners[i][1], corners[i + 1][0], corners[i + 1][1], dash_len, gap_len, color, width);
-  }
-}
-
-function draw_dashed_line(g: Graphics, x1: number, y1: number, x2: number, y2: number, dash_len: number, gap_len: number, color: number, width: number): void {
-  const len = Math.hypot(x2 - x1, y2 - y1);
-  if (len === 0) return;
-  const dx = (x2 - x1) / len;
-  const dy = (y2 - y1) / len;
-  let dist = 0;
-  let drawing = true;
-  while (dist < len) {
-    const seg_len = Math.min(drawing ? dash_len : gap_len, len - dist);
-    if (drawing && seg_len > 0) {
-      g.moveTo(x1 + dx * dist, y1 + dy * dist);
-      g.lineTo(x1 + dx * (dist + seg_len), y1 + dy * (dist + seg_len));
-      g.stroke({ color, width });
-    }
-    dist += seg_len;
-    drawing = !drawing;
+    glyph.position.anchorX = 0.5;
+    glyph.position.anchorY = 0.5;
+    // Glyph one above the bg so the box doesn't paint over the icon at the
+    // same z-level. Both still above scene UI.
+    glyph.display.zIndex = GHOST_Z_INDEX + 1;
+    this._ghost_glyph = glyph;
+    this._ghost_glyph_font = payload.font;
   }
 }

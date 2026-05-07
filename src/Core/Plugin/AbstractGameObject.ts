@@ -79,6 +79,15 @@ export class AbstractGameObject implements IAbstractGameObject {
     return 1;
   }
 
+  get zIndex(): number {
+    this._denyAccess();
+    return 0;
+  }
+
+  set zIndex(val: number) {
+    this._denyAccess();
+  }
+
 
   set x(val: number) {
     this._denyAccess();

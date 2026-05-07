@@ -77,6 +77,10 @@ export class SceneManager {
   private _addScene(name: string, scene: IScene) {
     let sd = this._createSceneData(name, scene);
     sd.container = this._createContainer();
+    // Enable z-order sorting so entities can opt into "always on top"
+    // semantics via display.zIndex (e.g. drag ghost above sell overlay).
+    // Children with the default zIndex of 0 keep their addChild order.
+    sd.container.sortableChildren = true;
 
     this._sceneList.push(sd);
   }

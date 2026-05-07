@@ -7,6 +7,7 @@ export class Display {
   private _visible: boolean;
   private _scaleX: number;
   private _scaleY:  number;
+  private _zIndex: number;
 
   private _foreignObject: IAbstractGameObject;
   private _abstractObject: IAbstractGameObject;
@@ -26,6 +27,7 @@ export class Display {
     this._visible = true;
     this._scaleX = 1;
     this._scaleY = 1;
+    this._zIndex = 0;
     this._scaleMode = {x: Sizes.normal, y: Sizes.normal, modifier: 1};
     this._containerMode = ContainerMode.gameplay;
   }
@@ -80,6 +82,17 @@ export class Display {
 
   set tint(val: number) {
     this._foreignObject.tint = val;
+  }
+
+  // PIXI z-order. Effective when the parent container has sortableChildren
+  // enabled (our scene containers do — see SceneManager._addScene).
+  get zIndex(): number {
+    return this._zIndex;
+  }
+
+  set zIndex(val: number) {
+    this._zIndex = val;
+    this._foreignObject.zIndex = val;
   }
 
   public setScaleMode(x: Sizes, y: Sizes, modifier: number) {
