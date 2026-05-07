@@ -41,6 +41,19 @@ export class ShopState {
     return item;
   }
 
+  // Drop a sold item back into the first empty market slot. Returns false if
+  // every slot is full (caller is responsible for either destroying the item
+  // or re-placing it). Used by the shop's sell-back drop target.
+  public place_in_first_empty(item: ItemInstance): boolean {
+    for (let i = 0; i < SHOP_SLOTS; i++) {
+      if (!this._slots[i]) {
+        this._slots[i] = item;
+        return true;
+      }
+    }
+    return false;
+  }
+
   // -- Roll / refresh -----------------------------------------------------
 
   // Roll the visible slots. The pool is the same one OpponentGen draws from

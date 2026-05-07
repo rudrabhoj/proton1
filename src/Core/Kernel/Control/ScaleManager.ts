@@ -19,6 +19,16 @@ export class ScaleManager {
     this._entities.push(entity);
   }
 
+  // Remove a single entity. Required when an ephemeral entity (e.g. the
+  // shop's transient "+amount" sell-refund text) is destroyed mid-scene; if
+  // we leave it in the registry, the next window resize will invoke
+  // updatePosition on a wrapper whose foreignObject has been destroyed and
+  // null-deref on PIXI's nulled _position field.
+  public removeEntity(entity: CoreEntity) {
+    const i = this._entities.indexOf(entity);
+    if (i >= 0) this._entities.splice(i, 1);
+  }
+
   public clearEntities() {
     this._entities = [];
   }

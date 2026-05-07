@@ -5,12 +5,16 @@ import { EntityFactory } from "../../Kernel/GameObjects/EntityFactory";
 import { IScene } from "../../Kernel/GameObjects/IScene";
 import { ISceneManager } from "../../Plugin/ISceneManager";
 import { DragManager, DragPayload, DropTarget } from "../../Kernel/Control/DragManager";
+import { ScaleManager } from "../../Kernel/Control/ScaleManager";
 import { Pino } from "../../Services/Pino";
 
 import { Slot } from "../GameItems/Slot";
 import { TerminalPanel } from "../GameItems/TerminalPanel";
 import { Button } from "../GameItems/Button";
 import { FirewallBar } from "../GameItems/FirewallBar";
+
+import { Graphic } from "../../Kernel/GameObjects/Graphic";
+import { Text } from "../../Kernel/GameObjects/Text";
 
 import { ShopState } from "../Logic/ShopState";
 import { Inventory, SlotLocation } from "../Logic/Inventory";
@@ -23,6 +27,8 @@ import { Theme } from "../Theme";
 const SLOT_SIZE = 130;
 const SHOP_GAP = 18;
 const HDD_GAP = 12;
+const SELL_REFUND_FRACTION = 0.5;
+const SELL_FADE_MS = 600;
 
 interface SourceRef {
   origin: 'shop' | 'board' | 'hdd';
@@ -39,6 +45,7 @@ export class Shop implements IScene {
   private _entityFactory: EntityFactory;
   private _sceneManager: ISceneManager;
   private _dragManager: DragManager;
+  private _scaleManager: ScaleManager;
   private _pino: Pino;
 
   private _slot_proto: Slot;
@@ -65,12 +72,28 @@ export class Shop implements IScene {
   private _hdd_page_text: any | null;
   private _drop_targets: DropTarget[];
 
-  constructor(entityFactory: EntityFactory, sceneManager: ISceneManager, dragManager: DragManager, pino: Pino,
+  // Market sell-back: invisible bounds node for the drop target, plus the
+  // ephemeral overlay shown while a draggable hovers over the market row.
+  private _market_drop_node: Graphic | null;
+  private _sell_zone_bg: Graphic | null;
+  private _sell_amount_text: Text | null;
+  private _sell_fade_remaining_ms: number;
+  private _last_drag_active: boolean;
+  // The slot the current drag came from. While a sell-drag is over the
+  // market we recolor this slot to market tone so the player sees its
+  // origin highlighted in yellow; we also retint the ghost. We keep the
+  // original tone so we can restore it on leave / drag complete.
+  private _drag_source_view: SlotView | null;
+  private _drag_source_tone: 'shop' | 'board' | 'hdd' | null;
+
+  constructor(entityFactory: EntityFactory, sceneManager: ISceneManager, dragManager: DragManager,
+  scaleManager: ScaleManager, pino: Pino,
   slot: Slot, panel: TerminalPanel, button: Button, firewallBar: FirewallBar,
   shopState: ShopState, inventory: Inventory, runState: RunState) {
     this._entityFactory = entityFactory;
     this._sceneManager = sceneManager;
     this._dragManager = dragManager;
+    this._scaleManager = scaleManager;
     this._pino = pino;
     this._slot_proto = slot;
     this._panel_proto = panel;
@@ -93,10 +116,25 @@ export class Shop implements IScene {
     this._freeze_btn = null;
     this._hdd_page_text = null;
     this._drop_targets = [];
+
+    this._market_drop_node = null;
+    this._sell_zone_bg = null;
+    this._sell_amount_text = null;
+    this._sell_fade_remaining_ms = 0;
+    this._last_drag_active = false;
+    this._drag_source_view = null;
+    this._drag_source_tone = null;
   }
 
   public async preload(): Promise<void> {}
-  public update(): void {}
+
+  // Per-frame: drive the sell-overlay fade and re-disable buttons while a
+  // drag is committed (matches Oaken Tower-style "dim everything except the
+  // drag and its drop targets").
+  public update(dt: number): void {
+    this._tick_sell_fade(dt);
+    this._tick_drag_button_state();
+  }
 
   public create(): void {
     // shutdown() (or constructor on first run) guarantees clean state here.
@@ -131,6 +169,16 @@ export class Shop implements IScene {
     this._refresh_btn = null;
     this._freeze_btn = null;
     this._hdd_page_text = null;
+    this._market_drop_node = null;
+    // Sell overlay refs are wrapper handles to PIXI children that the scene
+    // root will destroy via swapSceneRoot. We just drop the references; the
+    // ScaleManager registry is wiped by SceneManager before swap.
+    this._sell_zone_bg = null;
+    this._sell_amount_text = null;
+    this._sell_fade_remaining_ms = 0;
+    this._last_drag_active = false;
+    this._drag_source_view = null;
+    this._drag_source_tone = null;
   }
 
   // ---------- builders ----------
@@ -194,6 +242,18 @@ export class Shop implements IScene {
       price.position.anchorY = 0.5;
       this._shop_price_texts.push(price);
     }
+
+    // Bounds node spanning the whole 5-slot row. This is what DragManager
+    // hit-tests against to fire the market drop target. fillAlpha must be
+    // non-zero or PxGraphics._buildFill skips .fill() entirely and PIXI
+    // Graphics.getBounds() returns an empty rectangle, so the drop target
+    // never matches the cursor (took an embarrassing amount of time to find).
+    const node = this._entityFactory.graphic(start_x, y);
+    node.graphics.fillColor = 0x000000;
+    node.graphics.fillAlpha = 0.001;
+    node.graphics.borderStyle = 'none';
+    node.graphics.rect(0, 0, total_w, SLOT_SIZE);
+    this._market_drop_node = node;
   }
 
   private _build_freeze_refresh(): void {
@@ -333,6 +393,152 @@ export class Shop implements IScene {
     this._setup_source_drags(this._board_views);
     this._register_targets(this._board_views);
     this._register_targets(this._hdd_views);
+    this._register_market_target();
+  }
+
+  private _register_market_target(): void {
+    if (!this._market_drop_node) return;
+    const target: DropTarget = {
+      bounds_node: this._market_drop_node.graphics.data,
+      on_drag_enter: (p) => this._on_market_enter(p),
+      on_drag_leave: () => this._on_market_leave(),
+      on_drop: (p) => this._on_drop_to_market(p),
+    };
+    this._drop_targets.push(target);
+    this._dragManager.register(target);
+  }
+
+  // ---------- sell-back ----------
+
+  private _on_market_enter(payload: DragPayload): void {
+    const src: SourceRef = payload.data.src;
+    if (src.origin === 'shop') return;  // can't sell what you haven't bought
+    // If a previous drop is still fading out, snap it away so we don't stack
+    // two overlays on top of each other.
+    this._destroy_sell_overlay();
+    const item: ItemInstance = payload.data.item;
+    const def = get_item(item.defId);
+    const refund = Math.max(1, Math.floor(def.cost * SELL_REFUND_FRACTION));
+    this._build_sell_overlay(refund);
+
+    // Recolor the drag ghost to market tone, solid-bordered. Source slot
+    // goes to drop_target state in market tone, which is bright-yellow
+    // dashed thicker — telegraphs "you can drop back here" alongside the
+    // market drop zone. The 'empty' state uses palette.line (a dark line
+    // color) which read as muted-orange and prompted the "looks solid"
+    // confusion.
+    this._dragManager.retint_ghost(Theme.market.dim, Theme.market.bright, false);
+    if (this._drag_source_view) {
+      this._drag_source_view.slot.set_tone('market');
+      this._drag_source_view.slot.set_state('drop_target');
+    }
+  }
+
+  private _on_market_leave(): void {
+    // Always revert the cosmetic recolors on leave — the drag may continue
+    // and land on a different target. The sell-overlay itself only goes
+    // away if no fade is in progress.
+    this._dragManager.retint_ghost(Theme.player.dim, Theme.player.bright, true);
+    if (this._drag_source_view && this._drag_source_tone) {
+      this._drag_source_view.slot.set_tone(this._tone_for(this._drag_source_tone));
+      this._drag_source_view.slot.set_state('empty');
+    }
+    if (this._sell_fade_remaining_ms <= 0) {
+      this._destroy_sell_overlay();
+    }
+  }
+
+  private _on_drop_to_market(payload: DragPayload): boolean {
+    const src: SourceRef = payload.data.src;
+    if (src.origin === 'shop') return false;
+    const item: ItemInstance = payload.data.item;
+    const def = get_item(item.defId);
+    const refund = Math.max(1, Math.floor(def.cost * SELL_REFUND_FRACTION));
+    this._runState.earn(refund);
+    // Best-effort placement: full market = sale completes anyway, item gone.
+    this._shopState.place_in_first_empty(item);
+    // Reveal the slots underneath now so the placed item is visible behind
+    // the fading band — the band's alpha tween becomes a cross-fade.
+    this._set_market_visible(true);
+    this._sell_fade_remaining_ms = SELL_FADE_MS;
+    return true;
+  }
+
+  private _build_sell_overlay(amount: number): void {
+    const total_w = SLOT_SIZE * 5 + SHOP_GAP * 4;
+    const start_x = (1080 - total_w) / 2;
+    const y = 400;
+
+    // Slots and their price labels go invisible while the band is up so the
+    // row reads as one big sell zone instead of five small slots with stuff
+    // bleeding through. They come back when _destroy_sell_overlay runs.
+    this._set_market_visible(false);
+
+    // Dashed outer band covering the whole row. Opaque enough to read as a
+    // single zone rather than as a stack of slots.
+    const bg = this._entityFactory.graphic(start_x, y);
+    bg.graphics.fillColor = Theme.market.dim;
+    bg.graphics.fillAlpha = 0.95;
+    bg.graphics.borderColor = Theme.market.bright;
+    bg.graphics.borderAlpha = 1;
+    bg.graphics.borderWidth = 4;
+    bg.graphics.borderStyle = 'dashed';
+    bg.graphics.rect(0, 0, total_w, SLOT_SIZE);
+    this._sell_zone_bg = bg;
+
+    // Big "+ $N" centered. The dragged item itself is communicated by the
+    // ghost (now retinted to market tone) and the dashed-yellow source slot
+    // — no separate preview box inside the band.
+    const txt = this._entityFactory.text(start_x + total_w / 2, y + SLOT_SIZE / 2, `+ ${Theme.glyph.ui.money} ${amount}`, {
+      fontSize: 80,
+      fontFamily: Theme.font,
+      fill: Theme.market.bright,
+    });
+    txt.position.anchorX = 0.5;
+    txt.position.anchorY = 0.5;
+    this._sell_amount_text = txt;
+  }
+
+  private _destroy_sell_overlay(): void {
+    // Each entity needs three things cleaned up: the ScaleManager registry
+    // entry (otherwise the next resize calls updatePosition on a wrapper
+    // whose underlying PIXI object is destroyed and null-derefs on PIXI's
+    // nulled _position), the underlying foreign object (PIXI Text/Graphics),
+    // and our own field reference so GC can collect the wrapper.
+    const drop = (e: Graphic | Text | null) => {
+      if (!e) return;
+      this._scaleManager.removeEntity(e);
+      e.display.destroy();
+    };
+    drop(this._sell_zone_bg);
+    drop(this._sell_amount_text);
+    this._sell_zone_bg = null;
+    this._sell_amount_text = null;
+    this._sell_fade_remaining_ms = 0;
+    this._set_market_visible(true);
+  }
+
+  private _set_market_visible(v: boolean): void {
+    for (const view of this._shop_views) view.slot.graphic.display.visible = v;
+    for (const t of this._shop_price_texts) t.display.visible = v;
+  }
+
+  private _tick_sell_fade(dt: number): void {
+    if (this._sell_fade_remaining_ms <= 0) return;
+    this._sell_fade_remaining_ms -= dt;
+    const alpha = Math.max(0, this._sell_fade_remaining_ms / SELL_FADE_MS);
+    if (this._sell_zone_bg) this._sell_zone_bg.display.alpha = alpha;
+    if (this._sell_amount_text) this._sell_amount_text.display.alpha = alpha;
+    if (this._sell_fade_remaining_ms <= 0) {
+      this._destroy_sell_overlay();
+    }
+  }
+
+  private _tick_drag_button_state(): void {
+    const dragging = this._dragManager.is_dragging;
+    if (dragging === this._last_drag_active) return;
+    this._last_drag_active = dragging;
+    this._refresh_all();
   }
 
   private _setup_source_drags(views: SlotView[]): void {
@@ -362,6 +568,11 @@ export class Shop implements IScene {
         captured_item = item;
         view.slot.set_state('empty');
         view.slot.clear_glyph();
+        // Remember the source view so the market hover handlers can recolor
+        // it (and restore it later) — needs to happen here, when the drag
+        // actually commits, not on pointerdown.
+        this._drag_source_view = view;
+        this._drag_source_tone = view.origin;
         const def = get_item(item.defId);
         return {
           source_id: `${src.origin}:${src.index}`,
@@ -376,9 +587,21 @@ export class Shop implements IScene {
         if (!accepted && captured_item) {
           this._return_drag(src, captured_item);
         }
+        // Restore source slot tone in case the drag ended while over the
+        // market (the market-leave callback bails on fade and never reverts
+        // the recolor on a drop).
+        if (this._drag_source_view && this._drag_source_tone) {
+          this._drag_source_view.slot.set_tone(this._tone_for(this._drag_source_tone));
+        }
+        this._drag_source_view = null;
+        this._drag_source_tone = null;
         this._refresh_all();
       },
     });
+  }
+
+  private _tone_for(origin: 'shop' | 'board' | 'hdd'): 'market' | 'player' {
+    return origin === 'shop' ? 'market' : 'player';
   }
 
   private _tone_palette(origin: 'shop' | 'board' | 'hdd') {
@@ -534,18 +757,24 @@ export class Shop implements IScene {
     if (this._income_text) this._income_text.label.text = `${Theme.chrome.h} bank: $ ${this._runState.gold} ${Theme.glyph.ui.dot} income +${this._runState.income}`;
     if (this._level_text) this._level_text.label.text = `${Theme.glyph.ui.dot} lvl_${this._runState.level}`;
 
+    // Buttons go inert during a committed drag so the row reads as a single
+    // drop zone instead of competing call-to-actions.
+    const dragging = this._last_drag_active;
+
     if (this._lvl_btn) {
       const cap_reached = this._runState.level_up_cost < 0;
       this._lvl_btn.set_cost(cap_reached ? '--' : `$${this._runState.level_up_cost}`);
-      this._lvl_btn.set_disabled(cap_reached);
+      this._lvl_btn.set_disabled(cap_reached || dragging);
     }
-
     if (this._refresh_btn) {
       this._refresh_btn.set_cost(`$${this._shopState.refresh_cost}`);
+      this._refresh_btn.set_disabled(dragging);
     }
     if (this._freeze_btn) {
       this._freeze_btn.set_cost(this._shopState.is_frozen ? 'frozen' : `$${this._shopState.freeze_cost}`);
+      this._freeze_btn.set_disabled(dragging);
     }
+    if (this._cont_btn) this._cont_btn.set_disabled(dragging);
     if (this._hdd_page_text) this._hdd_page_text.label.text = `page ${this._inventory.hdd_page + 1}/${this._inventory.hdd_page_count}`;
 
     // Shop slots

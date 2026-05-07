@@ -20,7 +20,11 @@ import { Pino } from "../../Services/Pino";
 import { PixiLayer } from "../../Plugin/Pixi/PixiLayer";
 
 const DRAG_THRESHOLD_PX = 8;
-const GHOST_SIZE = 110;
+// Ghost is the cursor-followed preview of the dragged item. Sized to be
+// roughly the same as the slot's glyph (slot is 130 with a 71 glyph), so it
+// reads as the icon being carried, not a whole slot moving around.
+const GHOST_SIZE = 78;
+const GHOST_GLYPH_SIZE = 56;
 
 export type DragPayload = {
   source_id: string;
@@ -122,6 +126,32 @@ export class DragManager {
   }
 
   public get is_dragging(): boolean { return this._committed; }
+
+  // Re-skin the ghost mid-drag. Used when a drop target wants to telegraph
+  // "your dragged item lands here" by recoloring the cursor visual (e.g. the
+  // shop's sell zone changes the ghost from player-green-dashed to
+  // market-yellow-solid). Border, fill, AND glyph all switch tone — the
+  // dragged item should clearly read as part of the destination palette.
+  public retint_ghost(bg_color: number, border_color: number, dashed: boolean): void {
+    if (!this._ghost) return;
+    const bg = this._ghost.children[0] as Graphics | undefined;
+    if (!bg || typeof (bg as any).clear !== 'function') return;
+    const half = GHOST_SIZE / 2;
+    bg.clear();
+    bg.rect(-half, -half, GHOST_SIZE, GHOST_SIZE).fill({ color: bg_color, alpha: 0.6 });
+    if (dashed) {
+      draw_dashed_rect(bg, -half, -half, GHOST_SIZE, GHOST_SIZE, border_color, 4);
+    } else {
+      bg.rect(-half, -half, GHOST_SIZE, GHOST_SIZE).stroke({ color: border_color, width: 4 });
+    }
+    // Recolor the glyph too. PIXI v8's TextStyle has a setter on `fill` that
+    // emits an internal update, so the next render picks up the new color
+    // without us having to rebuild the Text object.
+    const txt = this._ghost.children[1] as Text | undefined;
+    if (txt && txt.style) {
+      txt.style.fill = border_color;
+    }
+  }
 
   // -- internals ---------------------------------------------------------
 
@@ -245,7 +275,7 @@ export class DragManager {
     const txt = new Text({
       text: payload.glyph,
       style: {
-        fontSize: GHOST_SIZE * 0.55,
+        fontSize: GHOST_GLYPH_SIZE,
         fontFamily: payload.font,
         fill: payload.border_color,
       },

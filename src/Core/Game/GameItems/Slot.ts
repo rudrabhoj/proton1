@@ -64,6 +64,20 @@ export class Slot {
     this._apply_visual_state();
   }
 
+  // Swap the slot's palette without touching state/glyph. Used by the shop
+  // when a sell-drag is hovering over the market: the source slot recolors
+  // to market tone so the player sees "this is where I came from" in the
+  // market color, then reverts when the drag leaves the market.
+  public set_tone(tone: SlotTone): void {
+    if (!this._opts) return;
+    this._opts.tone = tone;
+    this._apply_visual_state();
+  }
+
+  get tone(): SlotTone {
+    return this._opts?.tone ?? 'player';
+  }
+
   public set_glyph(glyph: string, tier_label?: string): void {
     if (!this._opts) return;
     this._glyph = glyph;

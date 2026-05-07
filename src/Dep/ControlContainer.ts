@@ -228,6 +228,7 @@ this._smartDepend.addDependency(this._Menu, this._RunState);
 this._smartDepend.addDependency(this._Shop, this._EntityFactory);
 this._smartDepend.addDependency(this._Shop, this._SceneManager);
 this._smartDepend.addDependency(this._Shop, this._DragManager);
+this._smartDepend.addDependency(this._Shop, this._ScaleManager);
 this._smartDepend.addDependency(this._Shop, this._Pino);
 this._smartDepend.addDependency(this._Shop, this._Slot);
 this._smartDepend.addDependency(this._Shop, this._TerminalPanel);
