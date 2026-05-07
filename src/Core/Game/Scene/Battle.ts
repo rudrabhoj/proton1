@@ -38,10 +38,14 @@ export class Battle implements IScene {
   private _player_bar: FirewallBar | null;
   private _enemy_bar: FirewallBar | null;
   private _log_view: CombatLog | null;
-  private _log_lines: string[];
   private _cont_btn: Button | null;
   private _speed: number;
   private _speed_btn: Button | null;
+
+  private _player_hp: number;
+  private _enemy_hp: number;
+  private _player_hp_max: number;
+  private _enemy_hp_max: number;
 
   private _result: BattleResult | null;
   private _opponent: OpponentSnapshot | null;
@@ -67,8 +71,11 @@ export class Battle implements IScene {
     this._player_bar = null;
     this._enemy_bar = null;
     this._log_view = null;
-    this._log_lines = [];
     this._cont_btn = null;
+    this._player_hp = 1048;
+    this._enemy_hp = 1048;
+    this._player_hp_max = 1048;
+    this._enemy_hp_max = 1048;
     this._result = null;
     this._opponent = null;
     this._playback_t = 0;
@@ -85,6 +92,10 @@ export class Battle implements IScene {
   public create(): void {
     this._opponent = generate_opponent(this._runState.seed, this._runState.day, this._runState.level);
     this._result = simulate_battle(this._inventory.board_items(), this._opponent.board);
+    this._player_hp = this._result.player_hp_max;
+    this._enemy_hp = this._result.enemy_hp_max;
+    this._player_hp_max = this._result.player_hp_max;
+    this._enemy_hp_max = this._result.enemy_hp_max;
 
     this._build_chrome();
     this._build_speed_toggle();
@@ -107,6 +118,9 @@ export class Battle implements IScene {
       this._apply_log_entry(entry);
       this._next_log_idx += 1;
     }
+
+    if (this._log_view) this._log_view.render(this._playback_t);
+    this._update_bars();
 
     if (this._next_log_idx >= this._result.log.length) {
       this._finished = true;
@@ -253,84 +267,74 @@ export class Battle implements IScene {
   // ---------- playback ----------
 
   private _apply_log_entry(entry: LogEntry): void {
-    const side_label = entry.kind === 'draw'
-      ? '----'
-      : (entry as any).side === 'player' ? 'D5' : (this._opponent?.name ?? 'enemy');
+    if (!this._log_view) return;
 
-    let line = '';
     if (entry.kind === 'fire') {
-      const sign = entry.side === 'player' ? '+' : '-';
       const mc = entry.multicast && entry.multicast > 1 ? ` x${entry.multicast}` : '';
-      line = CombatLog.format_line(0, side_label, `${entry.item}${mc}`, `${sign}${entry.dmg}`);
+      const label = this._side_label(entry.side, entry.slot);
       if (entry.side === 'player') {
-        this._damage_enemy(entry.dmg);
+        this._enemy_hp -= entry.dmg;
+        this._log_view.add_line(entry.t_ms, label, `${entry.item}${mc} +${entry.dmg}`);
       } else {
-        this._damage_player(entry.dmg);
+        this._player_hp -= entry.dmg;
+        this._log_view.add_line(entry.t_ms, label, `${entry.item}${mc} -${entry.dmg}`);
       }
-    } else if (entry.kind === 'effect_apply') {
-      line = CombatLog.format_line(0, side_label, entry.effect, `+${entry.stacks}`);
-    } else if (entry.kind === 'effect_tick') {
-      line = CombatLog.format_line(0, side_label, entry.effect, `-${entry.dmg}`);
-      if (entry.side === 'player') this._damage_player(entry.dmg);
-      else this._damage_enemy(entry.dmg);
-    } else if (entry.kind === 'patch_block') {
-      line = CombatLog.format_line(0, side_label, 'patch', `block ${entry.magnitude}`);
-    } else if (entry.kind === 'repair') {
-      line = CombatLog.format_line(0, side_label, 'repair', `+${entry.amount}`);
-      if (entry.side === 'player') this._heal_player(entry.amount);
-      else this._heal_enemy(entry.amount);
-    } else if (entry.kind === 'death') {
-      line = CombatLog.format_line(0, side_label, 'firewall', 'breached');
-    } else if (entry.kind === 'draw') {
-      line = `[ now ] both connections traced`;
+      return;
     }
 
-    if (line) {
-      this._log_lines.push(line);
-      if (this._log_view) this._log_view.render_lines(this._log_lines);
+    if (entry.kind === 'effect_tick') {
+      if (entry.side === 'player') this._player_hp -= entry.dmg;
+      else this._enemy_hp -= entry.dmg;
+      const label = this._side_label_no_slot(entry.side);
+      this._log_view.add_line(entry.t_ms, label, `${entry.effect} -${entry.dmg}`);
+      return;
+    }
+
+    if (entry.kind === 'effect_apply') {
+      const label = this._side_label(entry.side, entry.slot);
+      this._log_view.add_line(entry.t_ms, label, `${entry.effect} +${entry.stacks}`);
+      return;
+    }
+
+    if (entry.kind === 'patch_block') {
+      const label = this._side_label_no_slot(entry.side);
+      this._log_view.add_line(entry.t_ms, label, `patch block ${entry.magnitude}`);
+      return;
+    }
+
+    if (entry.kind === 'repair') {
+      if (entry.side === 'player') this._player_hp = Math.min(this._player_hp_max, this._player_hp + entry.amount);
+      else this._enemy_hp = Math.min(this._enemy_hp_max, this._enemy_hp + entry.amount);
+      const label = this._side_label_no_slot(entry.side);
+      this._log_view.add_line(entry.t_ms, label, `repair +${entry.amount}`);
+      return;
+    }
+
+    if (entry.kind === 'death') {
+      const label = this._side_label_no_slot(entry.side);
+      this._log_view.add_line(entry.t_ms, label, `firewall breached`);
+      return;
+    }
+
+    if (entry.kind === 'draw') {
+      this._log_view.add_line(entry.t_ms, '----', `connections traced`);
+      return;
     }
   }
 
-  private _damage_player(dmg: number): void {
-    if (!this._result || !this._player_bar) return;
-    const cur = this._result.player_hp_max;  // gross approx — drift via partial sim
-    // We don't track running HP separately; for v1, just rebuild from final + log scrub
-    const ratio = 1 - (this._cumulative_self_damage('player') / cur);
-    this._player_bar.set_kb(Math.max(0, cur * ratio));
+  private _side_label(side: 'player' | 'enemy', slot: number): string {
+    if (side === 'player') return `D${slot + 1}`;
+    return this._opponent?.name ?? 'enemy';
   }
 
-  private _damage_enemy(dmg: number): void {
-    if (!this._result || !this._enemy_bar) return;
-    const cur = this._result.enemy_hp_max;
-    const ratio = 1 - (this._cumulative_self_damage('enemy') / cur);
-    this._enemy_bar.set_kb(Math.max(0, cur * ratio));
+  private _side_label_no_slot(side: 'player' | 'enemy'): string {
+    if (side === 'player') return 'you';
+    return this._opponent?.name ?? 'enemy';
   }
 
-  private _heal_player(_amt: number): void {
-    if (!this._result || !this._player_bar) return;
-    const cur = this._result.player_hp_max;
-    const ratio = 1 - (this._cumulative_self_damage('player') / cur);
-    this._player_bar.set_kb(Math.max(0, cur * Math.min(1, ratio)));
-  }
-
-  private _heal_enemy(_amt: number): void {
-    if (!this._result || !this._enemy_bar) return;
-    const cur = this._result.enemy_hp_max;
-    const ratio = 1 - (this._cumulative_self_damage('enemy') / cur);
-    this._enemy_bar.set_kb(Math.max(0, cur * Math.min(1, ratio)));
-  }
-
-  // Compute cumulative damage applied to a side up to current playback index.
-  private _cumulative_self_damage(side: 'player' | 'enemy'): number {
-    if (!this._result) return 0;
-    let total = 0;
-    for (let i = 0; i < this._next_log_idx + 1 && i < this._result.log.length; i++) {
-      const e = this._result.log[i];
-      if (e.kind === 'fire' && e.side !== side) total += e.dmg;
-      if (e.kind === 'effect_tick' && e.side === side) total += e.dmg;
-      if (e.kind === 'repair' && e.side === side) total -= e.amount;
-    }
-    return total;
+  private _update_bars(): void {
+    if (this._player_bar) this._player_bar.set_kb(Math.max(0, this._player_hp));
+    if (this._enemy_bar) this._enemy_bar.set_kb(Math.max(0, this._enemy_hp));
   }
 
   private _resolve_outcome(): void {

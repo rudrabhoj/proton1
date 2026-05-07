@@ -5,20 +5,14 @@ export class Loop {
   private _funObj: FunObj;
   private _fList: FunObj[];
   private _boundExecuteAll: any;
-  private _paused: number;
   private _lastTime: number;
-  private _delay: number;
-  private _oldDelay: number;
 
   constructor(pino: Pino, funObj: FunObj) {
     this._pino = pino;
     this._funObj = funObj;
 
     this._fList = [];
-    this._paused = 0;
     this._lastTime = 0;
-    this._delay = 0;
-    this._oldDelay = 0;
 
     this._boundExecuteAll = this._executeAll.bind(this);
   }
@@ -49,9 +43,14 @@ export class Loop {
   }
 
   private _executeAll(time: number) {
+    if (this._lastTime === 0) this._lastTime = time;
+    let dt = time - this._lastTime;
+    this._lastTime = time;
+    // Clamp to avoid huge jumps after tab-switch / debug pauses.
+    if (dt > 100) dt = 100;
 
     for (let c = 0; c < this._fList.length; c++) {
-      this._fList[c].execute(time - this._delay);
+      this._fList[c].execute(dt);
     }
 
     window.requestAnimationFrame(this._boundExecuteAll);
@@ -73,12 +72,5 @@ export class Loop {
     return obj;
   }
 
-  private _pauseAll() {
-    this._paused = 2;
-  }
-
-  private _resumeAll() {
-    this._paused = 0;
-  }
 }
 

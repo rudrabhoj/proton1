@@ -32,6 +32,12 @@ export class PxGraphics implements IGraphics {
   constructor(pino: Pino) {
     this._pino = pino;
     this._live = new Graphics();
+    // Decorative by default. Without this, default 'passive' eventMode + the
+    // geometry-based containsPoint causes Graphics to absorb pointer hits
+    // inherited from interactive ancestors (stage), preventing sibling display
+    // objects from receiving clicks. Game code opts in via `interactive = true`
+    // (sets eventMode='static' via v8 compat shim).
+    this._live.eventMode = 'none';
     this._shape = null;
 
     this._fillColor = 0xffffff;

@@ -149,6 +149,13 @@ export class PxText {
     this._fill = style.fill;
     this._data = new Text({ text, style });
 
+    // Decorative by default. Without this, default 'passive' eventMode + the
+    // bounds-based containsPoint causes Text to absorb pointer hits inherited
+    // from interactive ancestors (stage), preventing sibling Graphics under
+    // the text from receiving clicks. Game code can opt in via
+    // `pxText.interactive = true` (sets eventMode='static' via v8 compat shim).
+    this._data.eventMode = 'none';
+
     this._scale = this._pxPoint.createNew(1, 1, (xVal: number) => {
       if (this._data) this._data.scale.x = xVal;
     }, (yVal: number) => {

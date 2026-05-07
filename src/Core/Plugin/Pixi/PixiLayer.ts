@@ -45,6 +45,17 @@ export class PixiLayer {
     }
   }
 
+  // Make stage interactive across the entire visible area.
+  // Required so stage-level pointermove / pointerup / pointerupoutside fire
+  // even when the cursor is over empty area between children. Per pixi v8
+  // canonical drag example.
+  public ensureStageHitArea(): void {
+    if (!this._app) return;
+    const stage = this._app.stage;
+    stage.eventMode = 'static';
+    stage.hitArea = this._app.screen;
+  }
+
   public swapSceneRoot(newContainer: any) {
     if (!this._app) return;
 
@@ -62,21 +73,20 @@ export class PixiLayer {
     stage.addChild(newContainer);
   }
 
-  // Subscribe to stage-wide pointer move; coords are PIXI screen pixels.
-  // Returns an unbind function. Stage interactivity is enabled lazily.
-  public onGlobalPointerMove(cb: (x: number, y: number) => void): () => void {
+  // Stage pointermove. Requires stage.hitArea = app.screen (set via ensureStageHitArea).
+  public onStagePointerMove(cb: (x: number, y: number) => void): () => void {
     if (!this._app) return () => {};
     const stage = this._app.stage;
-    stage.eventMode = 'static';
+    this.ensureStageHitArea();
     const handler = (e: any) => cb(e.global.x, e.global.y);
-    stage.on('globalpointermove', handler);
-    return () => stage.off('globalpointermove', handler);
+    stage.on('pointermove', handler);
+    return () => stage.off('pointermove', handler);
   }
 
-  public onGlobalPointerUp(cb: (x: number, y: number) => void): () => void {
+  public onStagePointerUp(cb: (x: number, y: number) => void): () => void {
     if (!this._app) return () => {};
     const stage = this._app.stage;
-    stage.eventMode = 'static';
+    this.ensureStageHitArea();
     const handler = (e: any) => cb(e.global.x, e.global.y);
     stage.on('pointerup', handler);
     stage.on('pointerupoutside', handler);
@@ -84,6 +94,18 @@ export class PixiLayer {
       stage.off('pointerup', handler);
       stage.off('pointerupoutside', handler);
     };
+  }
+
+  // Overlay = stage child above the current scene container.
+  // Survives until removed; killed if scene swap calls removeChildren on stage.
+  public addOverlay(displayObj: any): void {
+    if (!this._app) return;
+    this._app.stage.addChild(displayObj);
+  }
+
+  public removeOverlay(displayObj: any): void {
+    if (!this._app) return;
+    this._app.stage.removeChild(displayObj);
   }
 
   public createContainer(): Container {

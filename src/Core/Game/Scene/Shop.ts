@@ -321,34 +321,57 @@ export class Shop implements IScene {
   private _setup_source_drags(views: SlotView[]): void {
     for (const v of views) {
       v.slot.graphic.graphics.interactive = true;
-      v.slot.graphic.graphics.on('pointerdown', () => this._begin_drag(v));
+      v.slot.graphic.graphics.on('pointerdown', (e: any) => this._on_pointerdown(v, e));
     }
   }
 
-  private _begin_drag(view: SlotView): void {
+  // Arm a drag on pointerdown. The actual extraction (take from inventory + visual)
+  // happens only when threshold is crossed via the `request` callback.
+  private _on_pointerdown(view: SlotView, e: any): void {
+    // Only primary button / first touch starts a drag.
+    if (e && typeof e.button === 'number' && e.button !== 0) return;
+    const start_x = e.global.x;
+    const start_y = e.global.y;
     const src: SourceRef = { origin: view.origin, index: view.index };
-    const item = this._take_for_drag(src);
-    if (!item) return;
-    view.slot.set_state('empty');
-    view.slot.clear_glyph();
 
-    const payload: DragPayload = {
-      source_id: `${src.origin}:${src.index}`,
-      data: { src, item },
-      glyph: get_item(item.defId).glyph,
-    };
+    let captured_item: ItemInstance | null = null;
 
-    this._dragManager.start_drag(payload, (accepted) => {
-      if (!accepted) {
-        this._return_drag(src, item);
-      }
-      this._refresh_all();
+    this._dragManager.arm_drag({
+      pointer_x: start_x,
+      pointer_y: start_y,
+      request: (): DragPayload | null => {
+        const item = this._take_for_drag(src);
+        if (!item) return null;
+        captured_item = item;
+        view.slot.set_state('empty');
+        view.slot.clear_glyph();
+        const def = get_item(item.defId);
+        return {
+          source_id: `${src.origin}:${src.index}`,
+          data: { src, item },
+          glyph: def.glyph,
+          font: Theme.font,
+          bg_color: this._tone_palette(view.origin).dim,
+          border_color: this._tone_palette(view.origin).bright,
+        };
+      },
+      on_complete: (accepted: boolean) => {
+        if (!accepted && captured_item) {
+          this._return_drag(src, captured_item);
+        }
+        this._refresh_all();
+      },
     });
+  }
+
+  private _tone_palette(origin: 'shop' | 'board' | 'hdd') {
+    if (origin === 'shop') return Theme.market;
+    return Theme.player;
   }
 
   private _take_for_drag(src: SourceRef): ItemInstance | null {
     if (src.origin === 'shop') {
-      // Don't actually take from shop — only commit on drop
+      // For shop, don't remove yet — slot_at peeks. Drop logic commits the buy.
       return this._shopState.slot_at(src.index);
     }
     if (src.origin === 'board') {
@@ -363,7 +386,7 @@ export class Shop implements IScene {
   }
 
   private _return_drag(src: SourceRef, item: ItemInstance): void {
-    if (src.origin === 'shop') return;  // never actually removed
+    if (src.origin === 'shop') return;
     if (src.origin === 'board') {
       this._inventory.place(item, { kind: 'board', index: src.index });
       return;

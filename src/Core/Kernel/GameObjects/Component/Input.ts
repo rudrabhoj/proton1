@@ -22,7 +22,11 @@ export class Input {
 
     this._foreignObject.interactive = true;
 
-    this._foreignObject.on('pointerup', () => {
+    // pointertap fires only when pointerdown + pointerup happened on the
+    // SAME element (PIXI federated event). Filter to button === 0 so
+    // right-click and middle-click don't activate.
+    this._foreignObject.on('pointertap', (e: any) => {
+      if (e && typeof e.button === 'number' && e.button !== 0) return;
       this._executeAll();
     })
   }

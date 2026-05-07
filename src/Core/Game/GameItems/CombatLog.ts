@@ -1,14 +1,18 @@
-// Streaming combat log. Shows last N entries with relative timestamps.
-// Renders inside a TerminalPanel; uses a single multi-line Text for body.
-//
-// Pure presenter — given a list of formatted lines, draws them.
+// Streaming combat log. Stores raw entries; re-renders with relative timestamps
+// every render(playback_t) call so older lines age into "[-1.4s]" form.
 
 import { EntityFactory } from "../../Kernel/GameObjects/EntityFactory";
 import { Text } from "../../Kernel/GameObjects/Text";
 import { Theme } from "../Theme";
 
-const MAX_LINES = 5;
-const LINE_HEIGHT = 38;
+const MAX_VISIBLE = 5;
+const NOW_THRESHOLD_MS = 200;
+
+interface LogLine {
+  t_ms: number;
+  side_label: string;
+  body: string;
+}
 
 export interface CombatLogOptions {
   x: number;
@@ -20,12 +24,12 @@ export interface CombatLogOptions {
 export class CombatLog {
   private _entityFactory: EntityFactory;
   private _bodyText: Text | null;
-  private _opts: CombatLogOptions | null;
+  private _lines: LogLine[];
 
   constructor(entityFactory: EntityFactory) {
     this._entityFactory = entityFactory;
     this._bodyText = null;
-    this._opts = null;
+    this._lines = [];
   }
 
   public createNew(): CombatLog {
@@ -33,28 +37,34 @@ export class CombatLog {
   }
 
   public init(opts: CombatLogOptions): void {
-    this._opts = opts;
     this._bodyText = this._entityFactory.text(opts.x + 18, opts.y + 18, '', {
       fontSize: Theme.text.mono,
       fontFamily: Theme.font,
       fill: Theme.player.bright,
-      lineHeight: LINE_HEIGHT,
+      lineHeight: 38,
     });
     this._bodyText.position.anchorX = 0;
     this._bodyText.position.anchorY = 0;
   }
 
-  public render_lines(lines: string[]): void {
-    if (!this._bodyText) return;
-    const tail = lines.slice(Math.max(0, lines.length - MAX_LINES));
-    this._bodyText.label.text = tail.join('\n');
+  public reset(): void {
+    this._lines = [];
+    if (this._bodyText) this._bodyText.label.text = '';
   }
 
-  // Format a single battle event into a log line (e.g., "[-1.4s] D8 → chain x3 +120 dmg").
-  // The renderer scene calls this per-event.
-  public static format_line(t_relative_ms: number, side_label: string, item: string, value: string): string {
-    const t_s = (t_relative_ms / 1000).toFixed(1);
-    const sign = t_relative_ms === 0 ? ' now ' : `-${t_s}s`;
-    return `[${sign}] ${side_label} ▶ ${item} ${value}`;
+  public add_line(t_ms: number, side_label: string, body: string): void {
+    this._lines.push({ t_ms, side_label, body });
+  }
+
+  // Re-render visible tail with relative timestamps based on playback time.
+  public render(playback_t_ms: number): void {
+    if (!this._bodyText) return;
+    const tail = this._lines.slice(Math.max(0, this._lines.length - MAX_VISIBLE));
+    const formatted = tail.map((l) => {
+      const dt = playback_t_ms - l.t_ms;
+      const tag = dt < NOW_THRESHOLD_MS ? '[ now ]' : `[-${(dt / 1000).toFixed(1)}s]`;
+      return `${tag} ${l.side_label} ${Theme.glyph.shape.play} ${l.body}`;
+    });
+    this._bodyText.label.text = formatted.join('\n');
   }
 }

@@ -13,8 +13,8 @@ const DEFAULT_MAX_MS = 60_000;
 export type Side = 'player' | 'enemy';
 
 export type LogEntry =
-  | { kind: 'fire'; t_ms: number; side: Side; item: string; dmg: number; multicast?: number }
-  | { kind: 'effect_apply'; t_ms: number; side: Side; effect: EffectKind; magnitude: number; stacks: number }
+  | { kind: 'fire'; t_ms: number; side: Side; slot: number; item: string; dmg: number; multicast?: number }
+  | { kind: 'effect_apply'; t_ms: number; side: Side; slot: number; effect: EffectKind; magnitude: number; stacks: number }
   | { kind: 'effect_tick'; t_ms: number; side: Side; effect: EffectKind; dmg: number }
   | { kind: 'patch_block'; t_ms: number; side: Side; magnitude: number }
   | { kind: 'repair'; t_ms: number; side: Side; amount: number }
@@ -34,6 +34,7 @@ export interface BattleResult {
 interface ActiveItem {
   def: ItemDef;
   inst: ItemInstance;
+  slot: number;
   cd_remaining: number;
   cd_full: number;
   dmg: number;
@@ -105,7 +106,8 @@ export function simulate_battle(
 
 function make_state(side: Side, board: Array<ItemInstance | null>): SideState {
   const items: ActiveItem[] = [];
-  for (const inst of board) {
+  for (let i = 0; i < board.length; i++) {
+    const inst = board[i];
     if (!inst) continue;
     const def = get_item(inst.defId);
     let dmg = 0;
@@ -119,7 +121,7 @@ function make_state(side: Side, board: Array<ItemInstance | null>): SideState {
       dmg = tiered_dmg(def.behavior.dmg, inst.tier);
     }
     const cd_full = tiered_cd(def.cooldownMs, inst.tier);
-    items.push({ def, inst, cd_remaining: cd_full, cd_full, dmg, multicast });
+    items.push({ def, inst, slot: i, cd_remaining: cd_full, cd_full, dmg, multicast });
   }
   return {
     side,
@@ -175,7 +177,7 @@ function fire_item(it: ActiveItem, self: SideState, opponent: SideState, t: numb
 
   if (b.kind === 'damage') {
     const total = it.dmg * it.multicast;
-    log.push({ kind: 'fire', t_ms: t, side: self.side, item: it.def.id, dmg: total, multicast: it.multicast });
+    log.push({ kind: 'fire', t_ms: t, side: self.side, slot: it.slot, item: it.def.id, dmg: total, multicast: it.multicast });
     deal_damage(opponent, total, t, log);
     return;
   }
@@ -191,7 +193,7 @@ function fire_item(it: ActiveItem, self: SideState, opponent: SideState, t: numb
         remaining_ms: b.durationMs ?? 5000,
         next_tick_ms: t + TICK_INTERVAL_MS,
       });
-      log.push({ kind: 'effect_apply', t_ms: t, side: self.side, effect: 'repair', magnitude: mag, stacks: 1 });
+      log.push({ kind: 'effect_apply', t_ms: t, side: self.side, slot: it.slot, effect: 'repair', magnitude: mag, stacks: 1 });
     }
     return;
   }
@@ -199,20 +201,19 @@ function fire_item(it: ActiveItem, self: SideState, opponent: SideState, t: numb
   if (b.kind === 'effect_enemy') {
     const mag = tiered_magnitude(b.magnitude, it.inst.tier);
     const stacks = b.stacks ?? 1;
-    apply_effect_to(opponent, b.effect, mag, stacks, b.durationMs ?? 5000, t, log);
+    apply_effect_to(opponent, b.effect, mag, stacks, b.durationMs ?? 5000, t, log, it.slot, self.side);
     return;
   }
 
   if (b.kind === 'reactive_damage') {
-    // Honeypot / deflect: handled at deal_damage time. Item triggering does nothing direct.
-    log.push({ kind: 'fire', t_ms: t, side: self.side, item: it.def.id, dmg: 0 });
+    log.push({ kind: 'fire', t_ms: t, side: self.side, slot: it.slot, item: it.def.id, dmg: 0 });
     return;
   }
 }
 
 function apply_effect_to(
   s: SideState, kind: EffectKind, magnitude: number, stacks: number, duration: number,
-  t: number, log: LogEntry[],
+  t: number, log: LogEntry[], source_slot: number, source_side: Side,
 ): void {
   const existing = s.effects.find((e) => e.kind === kind);
   if (existing) {
@@ -225,7 +226,7 @@ function apply_effect_to(
       next_tick_ms: t + TICK_INTERVAL_MS,
     });
   }
-  log.push({ kind: 'effect_apply', t_ms: t, side: s.side, effect: kind, magnitude, stacks });
+  log.push({ kind: 'effect_apply', t_ms: t, side: source_side, slot: source_slot, effect: kind, magnitude, stacks });
 }
 
 function deal_damage(s: SideState, dmg: number, t: number, log: LogEntry[]): void {
