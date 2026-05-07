@@ -29,6 +29,13 @@ const SHOP_GAP = 18;
 const HDD_GAP = 12;
 const SELL_REFUND_FRACTION = 0.5;
 const SELL_FADE_MS = 600;
+// Long-press to reveal a tooltip card. Threshold is short enough to feel
+// responsive but long enough to not collide with a tap-and-flick drag.
+const HOLD_MS = 600;
+const TOOLTIP_CARD_X = 50;
+const TOOLTIP_CARD_Y = 540;
+const TOOLTIP_CARD_W = 980;
+const TOOLTIP_CARD_H = 580;
 
 interface SourceRef {
   origin: 'shop' | 'board' | 'hdd';
@@ -86,6 +93,16 @@ export class Shop implements IScene {
   private _drag_source_view: SlotView | null;
   private _drag_source_tone: 'shop' | 'board' | 'hdd' | null;
 
+  // Long-press tooltip. _hold_timer is a setTimeout handle (number in
+  // browser, NodeJS.Timeout in node — keep as `any` to avoid lib-dom dance).
+  // _tooltip_entities is every Graphic/Text the popup spawns; kept as a
+  // single array so tear-down is one loop and we don't lose any to a
+  // rename. The dimmer/catcher graphic is also in there.
+  private _hold_timer: any;
+  private _hold_indicator: Graphic | null;
+  private _tooltip_entities: Array<Graphic | Text>;
+  private _tooltip_open: boolean;
+
   constructor(entityFactory: EntityFactory, sceneManager: ISceneManager, dragManager: DragManager,
   scaleManager: ScaleManager, pino: Pino,
   slot: Slot, panel: TerminalPanel, button: Button, firewallBar: FirewallBar,
@@ -124,6 +141,10 @@ export class Shop implements IScene {
     this._last_drag_active = false;
     this._drag_source_view = null;
     this._drag_source_tone = null;
+    this._hold_timer = null;
+    this._hold_indicator = null;
+    this._tooltip_entities = [];
+    this._tooltip_open = false;
   }
 
   public async preload(): Promise<void> {}
@@ -179,6 +200,16 @@ export class Shop implements IScene {
     this._last_drag_active = false;
     this._drag_source_view = null;
     this._drag_source_tone = null;
+    // Long-press / tooltip state. Cancel the timer so it can't fire after
+    // the scene swap. Wrapper refs are dropped; PIXI children die with the
+    // scene root, ScaleManager is wiped by SceneManager.
+    if (this._hold_timer !== null) {
+      clearTimeout(this._hold_timer);
+      this._hold_timer = null;
+    }
+    this._hold_indicator = null;
+    this._tooltip_entities = [];
+    this._tooltip_open = false;
   }
 
   // ---------- builders ----------
@@ -550,27 +581,37 @@ export class Shop implements IScene {
 
   // Arm a drag on pointerdown. The actual extraction (take from inventory + visual)
   // happens only when threshold is crossed via the `request` callback.
+  // Also arms the long-press tooltip timer; a tap that doesn't move within
+  // HOLD_MS reveals the tooltip and cancels the drag.
   private _on_pointerdown(view: SlotView, e: any): void {
     // Only primary button / first touch starts a drag.
     if (e && typeof e.button === 'number' && e.button !== 0) return;
+    // If a tooltip is open, swallow the gesture — taps inside the tooltip
+    // are handled by its own children, taps outside are handled by the
+    // tooltip's catcher. A pointerdown reaching here means the underlying
+    // slot somehow received it; just ignore.
+    if (this._tooltip_open) return;
+
     const start_x = e.global.x;
     const start_y = e.global.y;
     const src: SourceRef = { origin: view.origin, index: view.index };
 
     let captured_item: ItemInstance | null = null;
 
+    this._start_hold(view);
+
     this._dragManager.arm_drag({
       pointer_x: start_x,
       pointer_y: start_y,
       request: (): DragPayload | null => {
+        // Drag committed (threshold crossed) before the hold fired — abort
+        // the long-press so a flick doesn't pop a tooltip mid-drag.
+        this._cancel_hold();
         const item = this._take_for_drag(src);
         if (!item) return null;
         captured_item = item;
         view.slot.set_state('empty');
         view.slot.clear_glyph();
-        // Remember the source view so the market hover handlers can recolor
-        // it (and restore it later) — needs to happen here, when the drag
-        // actually commits, not on pointerdown.
         this._drag_source_view = view;
         this._drag_source_tone = view.origin;
         const def = get_item(item.defId);
@@ -584,12 +625,11 @@ export class Shop implements IScene {
         };
       },
       on_complete: (accepted: boolean) => {
+        // Tap or release before hold fired — kill the timer.
+        this._cancel_hold();
         if (!accepted && captured_item) {
           this._return_drag(src, captured_item);
         }
-        // Restore source slot tone in case the drag ended while over the
-        // market (the market-leave callback bails on fade and never reverts
-        // the recolor on a drop).
         if (this._drag_source_view && this._drag_source_tone) {
           this._drag_source_view.slot.set_tone(this._tone_for(this._drag_source_tone));
         }
@@ -598,6 +638,270 @@ export class Shop implements IScene {
         this._refresh_all();
       },
     });
+  }
+
+  // ---------- long-press tooltip ----------
+
+  private _start_hold(view: SlotView): void {
+    // Only market items currently get tooltips. Board/hdd holds could be
+    // added later but the user's design only spec'd market.
+    if (view.origin !== 'shop') return;
+    if (!this._shopState.slot_at(view.index)) return;  // empty slot — nothing to inspect
+    this._cancel_hold();
+    this._show_hold_indicator(view);
+    this._hold_timer = setTimeout(() => {
+      this._hold_timer = null;
+      this._on_hold_complete(view);
+    }, HOLD_MS);
+  }
+
+  private _cancel_hold(): void {
+    if (this._hold_timer !== null) {
+      clearTimeout(this._hold_timer);
+      this._hold_timer = null;
+    }
+    this._destroy_hold_indicator();
+  }
+
+  private _on_hold_complete(view: SlotView): void {
+    // Long-press wins over any pending drag. Cancel the arm so a later
+    // pointermove/pointerup doesn't commit a drag we no longer want.
+    this._dragManager.cancel_arm();
+    this._destroy_hold_indicator();
+    this._show_tooltip(view);
+  }
+
+  private _show_hold_indicator(view: SlotView): void {
+    const b = view.slot.bounds;
+    if (!b) return;
+    // Position the graphic at the slot's center (logical coords) and use
+    // anchor(0.5, 0.5) so the shape's center aligns with that position.
+    // Without anchor, PxGraphics defaults to top-left and the circle would
+    // sit shifted by (r, r) from where we want it. Using the engine's
+    // position system properly avoids hand-rolled offset math.
+    const cx = b.x + b.size / 2;
+    const cy = b.y + b.size / 2;
+    // Diameter ~= slot width so the ring hugs the slot like in the
+    // reference, not a giant halo.
+    const radius = b.size / 2;
+    const arc = this._entityFactory.graphic(cx, cy);
+    arc.graphics.anchor.set(0.5, 0.5);
+    arc.graphics.fillAlpha = 0;
+    // Status indicator stays player-tone (green) regardless of slot palette
+    // — it represents the gesture state, not the item.
+    arc.graphics.borderColor = Theme.player.bright;
+    arc.graphics.borderAlpha = 0.95;
+    arc.graphics.borderWidth = 3;
+    arc.graphics.borderStyle = 'dashed';
+    arc.graphics.circle(0, 0, radius);
+    this._hold_indicator = arc;
+  }
+
+  private _destroy_hold_indicator(): void {
+    if (!this._hold_indicator) return;
+    this._scaleManager.removeEntity(this._hold_indicator);
+    this._hold_indicator.display.destroy();
+    this._hold_indicator = null;
+  }
+
+  private _show_tooltip(view: SlotView): void {
+    const item = this._shopState.slot_at(view.index);
+    if (!item) return;
+    const def = get_item(item.defId);
+    const market = Theme.market;
+    const player = Theme.player;
+    const px = TOOLTIP_CARD_X, py = TOOLTIP_CARD_Y, pw = TOOLTIP_CARD_W, ph = TOOLTIP_CARD_H;
+    const pad = 36;
+
+    // -- Catcher (full-viewport, dim + click-to-close) ------------------
+    // Added first so it's the bottom layer — card and its children sit
+    // above and intercept their own taps. PIXI walks children top-down for
+    // hit-test, so this only catches taps OUTSIDE the card.
+    const catcher = this._entityFactory.graphic(0, 0);
+    catcher.graphics.fillColor = 0x000000;
+    catcher.graphics.fillAlpha = 0.55;
+    catcher.graphics.borderStyle = 'none';
+    catcher.graphics.rect(0, 0, 1080, 1920);
+    catcher.graphics.interactive = true;
+    catcher.graphics.on('pointertap', () => this._destroy_tooltip());
+    this._tooltip_entities.push(catcher);
+
+    // -- Card frame ------------------------------------------------------
+    const card = this._entityFactory.graphic(px, py);
+    card.graphics.fillColor = market.dim;
+    card.graphics.fillAlpha = 0.95;
+    card.graphics.borderColor = market.bright;
+    card.graphics.borderWidth = 4;
+    card.graphics.borderStyle = 'solid';
+    card.graphics.rect(0, 0, pw, ph);
+    card.graphics.interactive = true;  // eats clicks; card body itself is not a close button
+    this._tooltip_entities.push(card);
+
+    // -- Title (left) + × (right) ---------------------------------------
+    const title_y = py + pad + 24;
+    const title = this._entityFactory.text(px + pad, title_y, def.name, {
+      fontSize: 56, fontFamily: Theme.font, fill: market.bright,
+    });
+    title.position.anchorX = 0;
+    title.position.anchorY = 0.5;
+    this._tooltip_entities.push(title);
+
+    const close_size = 60;
+    const close_x = px + pw - pad - close_size;
+    const close_y = py + pad - 6;
+    const close_bg = this._entityFactory.graphic(close_x, close_y);
+    close_bg.graphics.fillColor = 0x000000;
+    close_bg.graphics.fillAlpha = 0.001;
+    close_bg.graphics.borderStyle = 'none';
+    close_bg.graphics.rect(0, 0, close_size, close_size);
+    close_bg.graphics.interactive = true;
+    close_bg.graphics.on('pointertap', () => this._destroy_tooltip());
+    this._tooltip_entities.push(close_bg);
+    const close_x_text = this._entityFactory.text(close_x + close_size / 2, close_y + close_size / 2, '×', {
+      fontSize: 56, fontFamily: Theme.font, fill: market.bright,
+    });
+    close_x_text.position.anchorX = 0.5;
+    close_x_text.position.anchorY = 0.5;
+    this._tooltip_entities.push(close_x_text);
+
+    // -- Stats row: cooldown (left) + damage summary (right) ------------
+    const stats_y = title_y + 90;
+    const cd_s = (def.cooldownMs / 1000).toFixed(1);
+    const cd_text = this._entityFactory.text(px + pad, stats_y, `${Theme.glyph.ui.clock} ${cd_s}s`, {
+      fontSize: 44, fontFamily: Theme.font, fill: player.bright,
+    });
+    cd_text.position.anchorX = 0;
+    cd_text.position.anchorY = 0.5;
+    this._tooltip_entities.push(cd_text);
+
+    const dmg_summary = this._dmg_summary(def);
+    if (dmg_summary) {
+      const dmg_text = this._entityFactory.text(px + pw / 2 + 20, stats_y, dmg_summary, {
+        fontSize: 44, fontFamily: Theme.font, fill: player.bright,
+      });
+      dmg_text.position.anchorX = 0;
+      dmg_text.position.anchorY = 0.5;
+      this._tooltip_entities.push(dmg_text);
+    }
+
+    // -- "on trigger:" label + description -------------------------------
+    const trigger_y = stats_y + 70;
+    const trigger_label = this._entityFactory.text(px + pad, trigger_y, 'on trigger:', {
+      fontSize: Theme.text.body, fontFamily: Theme.font, fill: player.text,
+    });
+    trigger_label.position.anchorX = 0;
+    trigger_label.position.anchorY = 0;
+    this._tooltip_entities.push(trigger_label);
+
+    const desc = this._entityFactory.text(px + pad, trigger_y + 40, def.description, {
+      fontSize: Theme.text.body, fontFamily: Theme.font, fill: player.bright,
+      wordWrap: true, wordWrapWidth: pw - pad * 2,
+    });
+    desc.position.anchorX = 0;
+    desc.position.anchorY = 0;
+    this._tooltip_entities.push(desc);
+
+    // -- Sell value (right-aligned) -------------------------------------
+    const sell_value = Math.max(1, Math.floor(def.cost * SELL_REFUND_FRACTION));
+    const sell_y = py + ph - pad - 110;
+    const sell_label = this._entityFactory.text(px + pad, sell_y, 'sell value:', {
+      fontSize: Theme.text.body, fontFamily: Theme.font, fill: player.text,
+    });
+    sell_label.position.anchorX = 0;
+    sell_label.position.anchorY = 0.5;
+    this._tooltip_entities.push(sell_label);
+    const sell_amount = this._entityFactory.text(px + pw - pad, sell_y, `${Theme.glyph.ui.money} ${sell_value}`, {
+      fontSize: Theme.text.body, fontFamily: Theme.font, fill: market.bright,
+    });
+    sell_amount.position.anchorX = 1;
+    sell_amount.position.anchorY = 0.5;
+    this._tooltip_entities.push(sell_amount);
+
+    // -- Buy button (bottom, filled market tone) ------------------------
+    const buy_x = px + pad;
+    const buy_y = py + ph - pad - 70;
+    const buy_w = pw - pad * 2;
+    const buy_h = 70;
+    const buy_bg = this._entityFactory.graphic(buy_x, buy_y);
+    buy_bg.graphics.fillColor = market.dim;
+    buy_bg.graphics.fillAlpha = 0.95;
+    buy_bg.graphics.borderColor = market.bright;
+    buy_bg.graphics.borderWidth = 3;
+    buy_bg.graphics.borderStyle = 'solid';
+    buy_bg.graphics.rect(0, 0, buy_w, buy_h);
+    buy_bg.graphics.interactive = true;
+    buy_bg.graphics.on('pointertap', () => this._tooltip_buy(view, item));
+    this._tooltip_entities.push(buy_bg);
+    const buy_label = this._entityFactory.text(buy_x + buy_w / 2, buy_y + buy_h / 2, `buy ${Theme.glyph.ui.dot} ${Theme.glyph.ui.money} ${def.cost}`, {
+      fontSize: 38, fontFamily: Theme.font, fill: market.bright,
+    });
+    buy_label.position.anchorX = 0.5;
+    buy_label.position.anchorY = 0.5;
+    this._tooltip_entities.push(buy_label);
+
+    this._tooltip_open = true;
+  }
+
+  private _destroy_tooltip(): void {
+    if (!this._tooltip_open) return;
+    for (const e of this._tooltip_entities) {
+      this._scaleManager.removeEntity(e);
+      e.display.destroy();
+    }
+    this._tooltip_entities = [];
+    this._tooltip_open = false;
+  }
+
+  private _dmg_summary(def: ReturnType<typeof get_item>): string | null {
+    const b = def.behavior;
+    if (b.kind === 'damage') {
+      const m = b.multicast && b.multicast > 1 ? ` x${b.multicast}` : '';
+      return `${b.dmg}${m} dmg`;
+    }
+    if (b.kind === 'reactive_damage') return `${b.dmg} reactive`;
+    if (b.kind === 'effect_self' && b.effect === 'patch') return `block ${b.magnitude}`;
+    if (b.kind === 'effect_self' && b.effect === 'repair') return `heal ${b.magnitude}`;
+    if (b.kind === 'effect_enemy') {
+      const stacks = b.stacks ? ` x${b.stacks}` : '';
+      return `${b.effect} ${b.magnitude}${stacks}`;
+    }
+    return null;
+  }
+
+  private _tooltip_buy(view: SlotView, item: ItemInstance): void {
+    if (view.origin !== 'shop') {
+      this._destroy_tooltip();
+      return;
+    }
+    const def = get_item(item.defId);
+    if (!this._runState.spend(def.cost)) {
+      this._pino.info('not enough $');
+      return;
+    }
+    this._shopState.take(view.index);
+    let placed = false;
+    for (let i = 0; i < this._inventory.board_slots; i++) {
+      if (!this._inventory.board_at(i)) {
+        placed = this._inventory.place(item, { kind: 'board', index: i });
+        if (placed) break;
+      }
+    }
+    if (!placed) {
+      const total_hdd = this._inventory.hdd_slots_per_page * this._inventory.hdd_page_count;
+      for (let i = 0; i < total_hdd; i++) {
+        if (!this._inventory.hdd_at_absolute(i)) {
+          placed = this._inventory.place(item, { kind: 'hdd', index: i });
+          if (placed) break;
+        }
+      }
+    }
+    if (!placed) {
+      // Refund and put the item back in the shop slot it came from.
+      this._runState.earn(def.cost);
+      this._shopState.place_in_first_empty(item);
+    }
+    this._destroy_tooltip();
+    this._refresh_all();
   }
 
   private _tone_for(origin: 'shop' | 'board' | 'hdd'): 'market' | 'player' {

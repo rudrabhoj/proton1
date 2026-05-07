@@ -127,6 +127,17 @@ export class DragManager {
 
   public get is_dragging(): boolean { return this._committed; }
 
+  // Cancel a pending arm without firing on_complete. Used by gesture handlers
+  // that want to take precedence over a tap-and-drag (e.g. long-press
+  // tooltip): once the long-press fires, subsequent pointermove/pointerup
+  // should not commit/release a drag. No-op once the drag has committed —
+  // by then the gesture is already a drag and the caller should let it
+  // finish through the normal path.
+  public cancel_arm(): void {
+    if (!this._armed || this._committed) return;
+    this._armed = null;
+  }
+
   // Re-skin the ghost mid-drag. Used when a drop target wants to telegraph
   // "your dragged item lands here" by recoloring the cursor visual (e.g. the
   // shop's sell zone changes the ghost from player-green-dashed to

@@ -235,9 +235,15 @@ export class PxGraphics implements IGraphics {
   }
 
   private _buildFill() {
-    if (this._fillAlpha > 0) {
-      this._live.fill({ color: this._fillColor, alpha: this._fillAlpha });
-    }
+    // Always commit the shape path with a fill — even at alpha 0. PIXI v8's
+    // GraphicsContext keeps the previous .rect()/.circle()/etc. path "open"
+    // until .fill() or .stroke() consumes it. When fillAlpha is 0 we used to
+    // skip .fill() entirely, which left the shape path pending; the next
+    // dashed-stroke builder (_dashCircle) would then call .stroke() and the
+    // pending full circle would get stroked too, drawing a solid ring on
+    // top of the dashes. Always-fill (alpha 0 = invisible) closes the path
+    // cleanly so dashed builders see a fresh slate.
+    this._live.fill({ color: this._fillColor, alpha: this._fillAlpha });
   }
 
   private _buildStroke() {

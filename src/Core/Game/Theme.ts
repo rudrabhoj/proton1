@@ -101,6 +101,7 @@ export const Theme = {
     ui: {
       snowflake: '\u{f2dc}',  // nf-fa-snowflake-o
       refresh:   '\u{f021}',  // nf-fa-refresh
+      clock:     '\u{f017}',  // nf-fa-clock-o
       menu:      '\u{f0c9}',  // nf-fa-bars
       arrowL:    '\u{2190}',  // ←
       arrowR:    '\u{2192}',  // →

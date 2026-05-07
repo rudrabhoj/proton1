@@ -78,6 +78,17 @@ export class Slot {
     return this._opts?.tone ?? 'player';
   }
 
+  // Logical-coord bounds, used by callers that need to position something
+  // (a hold-progress arc, a tooltip pointer, etc.) relative to the slot.
+  get bounds(): { x: number; y: number; size: number } | null {
+    if (!this._opts) return null;
+    return {
+      x: this._opts.x,
+      y: this._opts.y,
+      size: this._opts.size ?? Theme.slot.size,
+    };
+  }
+
   public set_glyph(glyph: string, tier_label?: string): void {
     if (!this._opts) return;
     this._glyph = glyph;
