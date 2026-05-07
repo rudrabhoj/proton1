@@ -70,29 +70,30 @@ export const Theme = {
 
   // -- Glyphs -------------------------------------------------------------
 
-  // Weapon / item icons. Nerd Font codepoints from Maple Mono NF.
-  // Comments give the NF name for reference; replace once verified at build.
+  // Glyph codepoints. All verified present in Maple Mono NF v7.9 via fontTools.
+  // If you add a new one, run scripts/verify_glyph.py (or the font cmap probe)
+  // before shipping — Maple Mono NF doesn't carry the entire Nerd Font set.
   glyph: {
     weapon: {
       packet:   '\u{f487}',  // nf-md-package_variant
-      strike:   '\u{f0e7}',  // nf-md-flash
+      strike:   '\u{f0e7}',  // nf-md-flash / fa-bolt
       chain:    '\u{f0c1}',  // nf-fa-link
-      breach:   '\u{f3ed}',  // nf-md-shield_off_outline (placeholder)
+      breach:   '\u{f05b}',  // nf-fa-crosshairs (replaces missing shield_off_outline)
       zeroDay:  '\u{f188}',  // nf-fa-bug
     },
     defense: {
       ack:        '\u{f132}',  // nf-fa-shield
       fail2ban:   '\u{f05e}',  // nf-fa-ban
-      honeypot:   '\u{f1e2}',  // nf-fa-bomb (placeholder)
+      honeypot:   '\u{f1e2}',  // nf-fa-bomb
     },
     effect: {
-      leak:     '\u{f773}',  // nf-md-water
+      leak:     '\u{f043}',  // nf-fa-tint (replaces missing md-water)
       overflow: '\u{f06d}',  // nf-fa-fire
-      entropy:  '\u{f8ce}',  // nf-md-radioactive
+      entropy:  '\u{e214}',  // nf-cod-virus (replaces missing md-radioactive)
     },
     support: {
       patch:    '\u{f0fa}',  // nf-fa-medkit
-      deflect:  '\u{f01e}',  // nf-fa-undo (placeholder)
+      deflect:  '\u{f01e}',  // nf-fa-undo
       sniffer:  '\u{f002}',  // nf-fa-search
     },
 
@@ -110,14 +111,12 @@ export const Theme = {
       cross:     '\u{2717}',  // ✗
     },
 
-    // Generic shapes (used where simple geometry reads better than NF glyph at small sizes)
+    // Generic shapes (Unicode geometric — present in any reasonable font).
     shape: {
       triangle: '\u{25b2}',
       diamond:  '\u{25c6}',
       circle:   '\u{25cf}',
       play:     '\u{25b6}',
-      star:     '\u{2605}',
-      sparkle:  '\u{2726}',
     },
   },
 

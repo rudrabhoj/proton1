@@ -58,18 +58,18 @@ export class PixiLayer {
 
   public swapSceneRoot(newContainer: any) {
     if (!this._app) return;
+    const stage = this._app.stage;
 
-    let stage = this._app.stage;
-    let oldRoot = stage.children[0] as Container;
-
-    if (oldRoot) {
-      for (let c = 0; c < oldRoot.children.length; c++) {
-        let obj = oldRoot.children[c];
-        obj.destroy();
-      }
+    // Recursively destroy every stage child (old scene root + any stale
+    // overlay like a drag ghost). PIXI v8's destroy({children:true}) walks
+    // the whole subtree atomically and detaches from parent. The while loop
+    // tolerates the array shrinking as each destroy removes itself; a
+    // for-loop with a forward index would skip every other child.
+    while (stage.children.length > 0) {
+      const child = stage.children[0];
+      child.destroy({ children: true, texture: false, textureSource: false });
     }
 
-    stage.removeChildren();
     stage.addChild(newContainer);
   }
 

@@ -11,11 +11,15 @@ import { FirewallBar } from "../GameItems/FirewallBar";
 import { CombatLog } from "../GameItems/CombatLog";
 import { Dossier } from "../GameItems/Dossier";
 
+import { Graphic } from "../../Kernel/GameObjects/Graphic";
+import { Text } from "../../Kernel/GameObjects/Text";
+import { Display } from "../../Kernel/GameObjects/Component/Display";
+
 import { Inventory } from "../Logic/Inventory";
 import { RunState } from "../Logic/RunState";
 import { simulate_battle, BattleResult, LogEntry } from "../Logic/BattleSim";
 import { generate_opponent, OpponentSnapshot } from "../Logic/OpponentGen";
-import { get_item } from "../Logic/ItemDef";
+import { get_item, tiered_cd } from "../Logic/ItemDef";
 import { Theme } from "../Theme";
 
 const SLOT_SIZE = 130;
@@ -47,12 +51,23 @@ export class Battle implements IScene {
   private _player_hp_max: number;
   private _enemy_hp_max: number;
 
+  // Per-slot cooldown bars + state. Index = board slot.
+  private _player_cd_bars: (Graphic | null)[];
+  private _enemy_cd_bars: (Graphic | null)[];
+  private _player_last_fire: number[];
+  private _enemy_last_fire: number[];
+  private _player_cd_full: number[];
+  private _enemy_cd_full: number[];
+
   private _result: BattleResult | null;
   private _opponent: OpponentSnapshot | null;
   private _playback_t: number;
   private _next_log_idx: number;
   private _finished: boolean;
   private _resolved: boolean;
+  private _outcome_text: Text | null;
+  private _outcome_pulse_low: number;
+  private _outcome_pulse_high: number;
 
   constructor(entityFactory: EntityFactory, sceneManager: ISceneManager,
   slot: Slot, panel: TerminalPanel, button: Button, firewallBar: FirewallBar, combatLog: CombatLog, dossier: Dossier,
@@ -84,12 +99,48 @@ export class Battle implements IScene {
     this._resolved = false;
     this._speed = 1;
     this._speed_btn = null;
+    this._player_cd_bars = [null, null, null, null, null];
+    this._enemy_cd_bars = [null, null, null, null, null];
+    this._player_last_fire = [0, 0, 0, 0, 0];
+    this._enemy_last_fire = [0, 0, 0, 0, 0];
+    this._player_cd_full = [0, 0, 0, 0, 0];
+    this._enemy_cd_full = [0, 0, 0, 0, 0];
+    this._outcome_text = null;
+    this._outcome_pulse_low = 0;
+    this._outcome_pulse_high = 1;
   }
 
   public async preload(): Promise<void> {}
-  public shutdown(): void {}
+
+  // Scene is a DI singleton — drop transient playback state and view refs so
+  // the next entry starts fresh. PIXI children are destroyed by swapSceneRoot;
+  // we still own the wrapper refs and the playback flags.
+  public shutdown(): void {
+    this._playback_t = 0;
+    this._next_log_idx = 0;
+    this._finished = false;
+    this._resolved = false;
+    this._speed = 1;
+    this._result = null;
+    this._opponent = null;
+    this._player_bar = null;
+    this._enemy_bar = null;
+    this._log_view = null;
+    this._cont_btn = null;
+    this._speed_btn = null;
+    this._player_cd_bars = [null, null, null, null, null];
+    this._enemy_cd_bars = [null, null, null, null, null];
+    this._player_last_fire = [0, 0, 0, 0, 0];
+    this._enemy_last_fire = [0, 0, 0, 0, 0];
+    this._player_cd_full = [0, 0, 0, 0, 0];
+    this._enemy_cd_full = [0, 0, 0, 0, 0];
+    this._outcome_text = null;
+    this._outcome_pulse_low = 0;
+    this._outcome_pulse_high = 1;
+  }
 
   public create(): void {
+    // shutdown() (or constructor on first run) guarantees clean state.
     this._opponent = generate_opponent(this._runState.seed, this._runState.day, this._runState.level);
     this._result = simulate_battle(this._inventory.board_items(), this._opponent.board);
     this._player_hp = this._result.player_hp_max;
@@ -108,25 +159,41 @@ export class Battle implements IScene {
 
   public update(dt: number): void {
     if (!this._result || !this._opponent) return;
-    if (this._finished) return;
 
-    this._playback_t += dt * this._speed;
+    // Advance playback time always — the pulse tween still needs a clock
+    // after the battle has ended so the verdict text can keep breathing.
+    this._playback_t += dt * (this._finished ? 1 : this._speed);
 
-    while (this._next_log_idx < this._result.log.length) {
-      const entry = this._result.log[this._next_log_idx];
-      if (entry.t_ms > this._playback_t) break;
-      this._apply_log_entry(entry);
-      this._next_log_idx += 1;
+    if (!this._finished) {
+      while (this._next_log_idx < this._result.log.length) {
+        const entry = this._result.log[this._next_log_idx];
+        if (entry.t_ms > this._playback_t) break;
+        this._apply_log_entry(entry);
+        this._next_log_idx += 1;
+      }
+
+      if (this._log_view) this._log_view.render(this._playback_t);
+      this._update_bars();
+      this._update_cd_bars();
+
+      if (this._next_log_idx >= this._result.log.length) {
+        this._finished = true;
+        this._resolve_outcome();
+        if (this._cont_btn) this._cont_btn.set_disabled(false);
+      }
     }
 
-    if (this._log_view) this._log_view.render(this._playback_t);
-    this._update_bars();
+    this._tick_outcome_pulse();
+  }
 
-    if (this._next_log_idx >= this._result.log.length) {
-      this._finished = true;
-      this._resolve_outcome();
-      if (this._cont_btn) this._cont_btn.set_disabled(false);
-    }
+  private _tick_outcome_pulse(): void {
+    if (!this._outcome_text) return;
+    this._outcome_text.display.alpha = Display.pulse_alpha(
+      this._playback_t,
+      this._outcome_pulse_low,
+      this._outcome_pulse_high,
+      900,
+    );
   }
 
   // ---------- builders ----------
@@ -195,18 +262,35 @@ export class Battle implements IScene {
 
     for (let i = 0; i < 5; i++) {
       const item = this._opponent.board[i];
+      const slot_x = start_x + i * (SLOT_SIZE + SLOT_GAP);
       const slot = this._slot_proto.createNew();
-      slot.init({ x: start_x + i * (SLOT_SIZE + SLOT_GAP), y, size: SLOT_SIZE, tone: 'enemy' });
+      slot.init({ x: slot_x, y, size: SLOT_SIZE, tone: 'enemy' });
       if (item) {
         slot.set_state('filled');
         slot.set_glyph(get_item(item.defId).glyph, item.tier > 1 ? `v${item.tier}` : '');
+        this._enemy_cd_full[i] = tiered_cd(get_item(item.defId).cooldownMs, item.tier);
+        this._enemy_cd_bars[i] = this._build_cd_bar(slot_x, y + SLOT_SIZE + 6, 'enemy');
       } else {
         slot.set_state('empty');
+        this._enemy_cd_full[i] = 0;
+        this._enemy_cd_bars[i] = null;
       }
     }
 
     this._enemy_bar = this._bar_proto.createNew();
     this._enemy_bar.init({ x: 50, y: 620, w: 980, h: 60, tone: 'enemy', initial_kb: 1048, max_kb: 1048 });
+  }
+
+  // 6-tall horizontal bar centered under the slot. Logical units; Position+Display
+  // scale to the viewport. Width is mutated each frame in _update_cd_bars.
+  private _build_cd_bar(slot_x: number, y: number, tone: 'player' | 'enemy'): Graphic {
+    const palette = tone === 'enemy' ? Theme.enemy : Theme.player;
+    const g = this._entityFactory.graphic(slot_x, y);
+    g.graphics.fillColor = palette.bright;
+    g.graphics.fillAlpha = 0.85;
+    g.graphics.borderStyle = 'none';
+    g.graphics.rect(0, 0, 0, 6);  // start empty
+    return g;
   }
 
   private _build_log(): void {
@@ -226,13 +310,18 @@ export class Battle implements IScene {
 
     for (let i = 0; i < 5; i++) {
       const item = this._inventory.board_at(i);
+      const slot_x = start_x + i * (SLOT_SIZE + SLOT_GAP);
       const slot = this._slot_proto.createNew();
-      slot.init({ x: start_x + i * (SLOT_SIZE + SLOT_GAP), y, size: SLOT_SIZE, tone: 'player' });
+      slot.init({ x: slot_x, y, size: SLOT_SIZE, tone: 'player' });
       if (item) {
         slot.set_state('filled');
         slot.set_glyph(get_item(item.defId).glyph, item.tier > 1 ? `v${item.tier}` : '');
+        this._player_cd_full[i] = tiered_cd(get_item(item.defId).cooldownMs, item.tier);
+        this._player_cd_bars[i] = this._build_cd_bar(slot_x, y + SLOT_SIZE + 6, 'player');
       } else {
         slot.set_state('empty');
+        this._player_cd_full[i] = 0;
+        this._player_cd_bars[i] = null;
       }
     }
 
@@ -274,9 +363,11 @@ export class Battle implements IScene {
       const label = this._side_label(entry.side, entry.slot);
       if (entry.side === 'player') {
         this._enemy_hp -= entry.dmg;
+        this._player_last_fire[entry.slot] = entry.t_ms;
         this._log_view.add_line(entry.t_ms, label, `${entry.item}${mc} +${entry.dmg}`);
       } else {
         this._player_hp -= entry.dmg;
+        this._enemy_last_fire[entry.slot] = entry.t_ms;
         this._log_view.add_line(entry.t_ms, label, `${entry.item}${mc} -${entry.dmg}`);
       }
       return;
@@ -337,12 +428,75 @@ export class Battle implements IScene {
     if (this._enemy_bar) this._enemy_bar.set_kb(Math.max(0, this._enemy_hp));
   }
 
+  // Per-slot cooldown bar: starts full, drains to 0 at the moment the item
+  // fires, then snaps back to full as last_fire is updated. Alpha tweens up
+  // and blend goes 'add' near zero so an imminent trigger glows as a cue.
+  private _update_cd_bars(): void {
+    this._tick_side_cd_bars(this._player_cd_bars, this._player_cd_full, this._player_last_fire);
+    this._tick_side_cd_bars(this._enemy_cd_bars, this._enemy_cd_full, this._enemy_last_fire);
+  }
+
+  private _tick_side_cd_bars(bars: (Graphic | null)[], cd_full_arr: number[], last_fire_arr: number[]): void {
+    for (let i = 0; i < bars.length; i++) {
+      const bar = bars[i];
+      const cd = cd_full_arr[i];
+      if (!bar || cd <= 0) continue;
+      const elapsed = this._playback_t - last_fire_arr[i];
+      const remaining = Math.max(0, Math.min(1, 1 - elapsed / cd));
+      const w = SLOT_SIZE * remaining;
+      // Re-rect updates the visual width; PxGraphics's _redraw clears + re-fills.
+      bar.graphics.rect(0, 0, w, 6);
+      if (remaining < 0.25) {
+        // Imminent trigger — additive blend + smooth alpha pulse for the
+        // "about to fire" cue. Sine tween between 0.7 and 1.0 over 240ms.
+        bar.graphics.fillBlend = 'add';
+        bar.graphics.fillAlpha = Display.pulse_alpha(this._playback_t, 0.7, 1.0, 240);
+      } else {
+        bar.graphics.fillBlend = 'normal';
+        // Static ramp: alpha intensifies as the bar shrinks toward 0.25.
+        bar.graphics.fillAlpha = 0.65 + (1 - remaining) * 0.35;
+      }
+    }
+  }
+
   private _resolve_outcome(): void {
     if (this._resolved || !this._result) return;
     this._resolved = true;
     if (this._result.outcome === 'player_win') this._runState.on_battle_win();
     else if (this._result.outcome === 'enemy_win') this._runState.on_battle_loss();
     else this._runState.on_battle_draw();
+    this._show_outcome();
+  }
+
+  // Big center-screen verdict, themed by who won. Pulse range varies so wins
+  // breathe brightly while losses feel dim and ominous; the pulse itself is
+  // driven by Display.pulse_alpha each frame in _tick_outcome_pulse.
+  private _show_outcome(): void {
+    if (!this._result) return;
+    let label = 'TIMEOUT';
+    let color = Theme.market.bright;
+    let low = 0.55;
+    let high = 1.0;
+    if (this._result.outcome === 'player_win') {
+      label = 'TARGET BREACHED';
+      color = Theme.player.bright;
+      low = 0.6;
+      high = 1.0;
+    } else if (this._result.outcome === 'enemy_win') {
+      label = 'CONNECTION TRACED';
+      color = Theme.enemy.bright;
+      low = 0.35;
+      high = 0.95;
+    }
+    this._outcome_pulse_low = low;
+    this._outcome_pulse_high = high;
+    this._outcome_text = this._entityFactory.text(540, 960, label, {
+      fontSize: 110,
+      fontFamily: Theme.font,
+      fill: color,
+    });
+    this._outcome_text.position.anchorX = 0.5;
+    this._outcome_text.position.anchorY = 0.5;
   }
 
   private _on_continue(): void {

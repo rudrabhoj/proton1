@@ -141,7 +141,18 @@ export class Display {
     this._foreignObject.alpha = this._alpha;
     this._foreignObject.visible = this._visible;
     this._foreignObject.scale.x = this._scale.resizeX(this._scaleX);
-    this._foreignObject.scale.y = this._scale.resizeY(this._scaleY);  
+    this._foreignObject.scale.y = this._scale.resizeY(this._scaleY);
+  }
+
+  // Smooth sinusoidal alpha tween. Returns a value in [low, high] driven by
+  // t_ms with period_ms. Sine is C1-continuous (no kink at extremes), so
+  // assigning the result per frame produces a smooth blink rather than a
+  // step toggle. Lives on Display because alpha is Display's domain;
+  // graphics fillAlpha consumers can call this static directly.
+  public static pulse_alpha(t_ms: number, low: number, high: number, period_ms: number): number {
+    const phase = (t_ms % period_ms) / period_ms;
+    const s = 0.5 + 0.5 * Math.sin(phase * Math.PI * 2);
+    return low + (high - low) * s;
   }
 }
 

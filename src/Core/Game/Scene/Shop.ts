@@ -99,6 +99,7 @@ export class Shop implements IScene {
   public update(): void {}
 
   public create(): void {
+    // shutdown() (or constructor on first run) guarantees clean state here.
     this._build_chrome();
     this._build_darkweb();
     this._build_market();
@@ -111,8 +112,25 @@ export class Shop implements IScene {
     this._refresh_all();
   }
 
+  // Scene is a DI singleton — fields outlive the scene instance. swapSceneRoot
+  // destroys our PIXI children, but our wrapper objects (Slots, Buttons, Texts)
+  // remain in the view arrays holding refs to those destroyed PIXI nodes.
+  // Drop them here so the next create() starts on a clean slate.
   public shutdown(): void {
     this._dragManager.unregister_all();
+    this._shop_views = [];
+    this._hdd_views = [];
+    this._board_views = [];
+    this._shop_price_texts = [];
+    this._drop_targets = [];
+    this._bank_text = null;
+    this._income_text = null;
+    this._level_text = null;
+    this._lvl_btn = null;
+    this._cont_btn = null;
+    this._refresh_btn = null;
+    this._freeze_btn = null;
+    this._hdd_page_text = null;
   }
 
   // ---------- builders ----------
