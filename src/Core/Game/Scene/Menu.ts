@@ -1,12 +1,10 @@
 import { EntityFactory } from "../../Kernel/GameObjects/EntityFactory";
 import { Sprite } from "../../Kernel/GameObjects/Sprite";
+import { Graphic } from "../../Kernel/GameObjects/Graphic";
 import { Button } from "../GameItems/Button";
 import { IScene } from "../../Kernel/GameObjects/IScene";
 import { ISceneManager } from "../../Plugin/ISceneManager";
-import { IScreen } from "../../Plugin/IScreen";
-import { IGraphics } from "../../Plugin/IGraphics";
 import { Background } from "../GameItems/Background";
-import { Config } from "../../Kernel/Control/Config";
 
 const FONT = "Maple Mono NF";
 const HACKER_GREEN = 0x00ff66;
@@ -14,28 +12,24 @@ const HACKER_GREEN = 0x00ff66;
 export class Menu implements IScene {
   private _entityFactory: EntityFactory;
   private _sceneManager: ISceneManager;
-  private _screen: IScreen;
-  private _config: Config;
   private _card: Button;
   private _mix: Button;
   private _fire: Button;
   private _background: Background;
   private _logo: Sprite;
-  private _hackerBtnBg: IGraphics | null;
+  private _hackerBtn: Graphic | null;
 
-  constructor(entityFactory: EntityFactory, sceneManager: ISceneManager, screen: IScreen, config: Config,
-  button: Button, sprite: Sprite, background: Background) {
+  constructor(entityFactory: EntityFactory, sceneManager: ISceneManager, button: Button, sprite: Sprite,
+  background: Background) {
     this._entityFactory = entityFactory;
     this._sceneManager = sceneManager;
-    this._screen = screen;
-    this._config = config;
     this._card = button;
     this._mix = button;
     this._fire = button;
 
     this._background = background;
     this._logo = sprite;
-    this._hackerBtnBg = null;
+    this._hackerBtn = null;
   }
 
   public async preload(): Promise<void> {
@@ -79,27 +73,17 @@ export class Menu implements IScene {
     const w = 474;
     const h = 130;
 
-    const ratio = Math.min(
-      this._config.displayWidth / this._config.width,
-      this._config.displayHeight / this._config.height,
-    );
-    const offsetX = (this._config.displayWidth - this._config.width * ratio) / 2;
-    const offsetY = (this._config.displayHeight - this._config.height * ratio) / 2;
+    const g = this._entityFactory.graphic(x, y);
+    g.graphics.fillColor = 0x000000;
+    g.graphics.fillAlpha = 0.85;
+    g.graphics.borderColor = HACKER_GREEN;
+    g.graphics.borderWidth = 4;
+    g.graphics.borderStyle = 'dashed';
+    g.graphics.rect(0, 0, w, h);
 
-    const g = this._screen.createGraphics();
-    g.fillColor = 0x000000;
-    g.fillAlpha = 0.85;
-    g.borderColor = HACKER_GREEN;
-    g.borderWidth = 4;
-    g.borderStyle = 'dashed';
-    g.rect(0, 0, w, h);
-    g.x = offsetX + x * ratio;
-    g.y = offsetY + y * ratio;
-    g.data.scale.set(ratio);
-    g.interactive = true;
-    g.on('pointerup', () => { this._startLevel('HackerMode'); });
-    this._hackerBtnBg = g;
-    this._sceneManager.addObject(g.data);
+    g.enableInput();
+    g.input.addMouseUp(() => { this._startLevel('HackerMode'); });
+    this._hackerBtn = g;
 
     const label = this._entityFactory.text(x + w / 2, y + h / 2, "> HACK_MODE", {
       fontSize: 56,

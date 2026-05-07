@@ -29,6 +29,7 @@ import { Scale } from '../Core/Kernel/GameObjects/Component/Scale.js';
 import { CoreEntity } from '../Core/Kernel/GameObjects/CoreEntity.js';
 import { CoreScene } from '../Core/Kernel/GameObjects/CoreScene.js';
 import { EntityFactory } from '../Core/Kernel/GameObjects/EntityFactory.js';
+import { Graphic } from '../Core/Kernel/GameObjects/Graphic.js';
 import { Sprite } from '../Core/Kernel/GameObjects/Sprite.js';
 import { Text } from '../Core/Kernel/GameObjects/Text.js';
 import { AbstractGameObject } from '../Core/Plugin/AbstractGameObject.js';
@@ -77,6 +78,7 @@ protected _Scale: any;
 protected _CoreEntity: any;
 protected _CoreScene: any;
 protected _EntityFactory: any;
+protected _Graphic: any;
 protected _Sprite: any;
 protected _Text: any;
 protected _AbstractGameObject: any;
@@ -134,6 +136,7 @@ this._Scale = this._smartDepend.addModule(Scale, false);
 this._CoreEntity = this._smartDepend.addModule(CoreEntity, false);
 this._CoreScene = this._smartDepend.addModule(CoreScene, false);
 this._EntityFactory = this._smartDepend.addModule(EntityFactory, false);
+this._Graphic = this._smartDepend.addModule(Graphic, false);
 this._Sprite = this._smartDepend.addModule(Sprite, false);
 this._Text = this._smartDepend.addModule(Text, false);
 this._AbstractGameObject = this._smartDepend.addModule(AbstractGameObject, false);
@@ -201,11 +204,8 @@ this._smartDepend.addDependency(this._FireMode, this._Background);
 this._smartDepend.addDependency(this._FireMode, this._ParticleSystem);
 
 
-this._smartDepend.addDependency(this._HackerMode, this._Pino);
 this._smartDepend.addDependency(this._HackerMode, this._EntityFactory);
 this._smartDepend.addDependency(this._HackerMode, this._SceneManager);
-this._smartDepend.addDependency(this._HackerMode, this._Screen);
-this._smartDepend.addDependency(this._HackerMode, this._Config);
 this._smartDepend.addDependency(this._HackerMode, this._Button);
 
 
@@ -218,8 +218,6 @@ this._smartDepend.addDependency(this._Loading, this._SceneManager);
 
 this._smartDepend.addDependency(this._Menu, this._EntityFactory);
 this._smartDepend.addDependency(this._Menu, this._SceneManager);
-this._smartDepend.addDependency(this._Menu, this._Screen);
-this._smartDepend.addDependency(this._Menu, this._Config);
 this._smartDepend.addDependency(this._Menu, this._Button);
 this._smartDepend.addDependency(this._Menu, this._Sprite);
 this._smartDepend.addDependency(this._Menu, this._Background);
@@ -276,7 +274,17 @@ this._smartDepend.addDependency(this._CoreScene, this._ScaleManager);
 
 this._smartDepend.addDependency(this._EntityFactory, this._Sprite);
 this._smartDepend.addDependency(this._EntityFactory, this._Text);
+this._smartDepend.addDependency(this._EntityFactory, this._Graphic);
 this._smartDepend.addDependency(this._EntityFactory, this._TweenJs);
+
+
+this._smartDepend.addDependency(this._Graphic, this._Position);
+this._smartDepend.addDependency(this._Graphic, this._Display);
+this._smartDepend.addDependency(this._Graphic, this._Input);
+this._smartDepend.addDependency(this._Graphic, this._ScaleManager);
+this._smartDepend.addDependency(this._Graphic, this._AbstractGameObject);
+this._smartDepend.addDependency(this._Graphic, this._Screen);
+this._smartDepend.addDependency(this._Graphic, this._SceneManager);
 
 
 this._smartDepend.addDependency(this._Sprite, this._Position);

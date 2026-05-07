@@ -8,6 +8,8 @@ type ShapeData =
   | { kind: 'ellipse'; cx: number; cy: number; rx: number; ry: number }
   | { kind: 'roundRect'; x: number; y: number; w: number; h: number; radius: number };
 
+type ShapeBounds = { x: number; y: number; width: number; height: number };
+
 export class PxGraphics implements IGraphics {
   private _pino: Pino;
   private _live: Graphics;
@@ -23,6 +25,10 @@ export class PxGraphics implements IGraphics {
   private _borderAlpha: number;
   private _borderStyle: BorderStyle;
 
+  private _anchorX: number;
+  private _anchorY: number;
+  private _anchorObj: { set: (x: number, y?: number) => object };
+
   constructor(pino: Pino) {
     this._pino = pino;
     this._live = new Graphics();
@@ -36,6 +42,17 @@ export class PxGraphics implements IGraphics {
     this._borderColor = 0x000000;
     this._borderAlpha = 1;
     this._borderStyle = 'none';
+
+    this._anchorX = 0;
+    this._anchorY = 0;
+    this._anchorObj = {
+      set: (x: number, y?: number) => {
+        this._anchorX = x;
+        this._anchorY = y ?? x;
+        this._applyPivot();
+        return this._anchorObj;
+      },
+    };
   }
 
   public createNew(): PxGraphics {
@@ -97,18 +114,49 @@ export class PxGraphics implements IGraphics {
     this._redraw();
   }
 
+  // Position / Display / Input contract (IAbstractGameObject)
+
   get x(): number { return this._live.x; }
   set x(v: number) { this._live.x = v; }
 
   get y(): number { return this._live.y; }
   set y(v: number) { this._live.y = v; }
 
+  get angle(): number { return this._live.angle; }
+  set angle(v: number) { this._live.angle = v; }
+
+  get alpha(): number { return this._live.alpha; }
+  set alpha(v: number) { this._live.alpha = v; }
+
+  get visible(): boolean { return this._live.visible; }
+  set visible(v: boolean) { this._live.visible = v; }
+
+  get tint(): number { return this._live.tint; }
+  set tint(v: number) { this._live.tint = v; }
+
+  get width(): number { return this._live.width; }
+  set width(v: number) { this._live.width = v; }
+
+  get height(): number { return this._live.height; }
+  set height(v: number) { this._live.height = v; }
+
+  get scale(): { x: number; y: number } { return this._live.scale; }
+  set scale(v: { x: number; y: number }) { this._live.scale.set(v.x, v.y); }
+
+  get anchor(): { set: (x: number, y?: number) => object } { return this._anchorObj; }
+
   get interactive(): boolean { return this._live.interactive === true; }
   set interactive(v: boolean) { this._live.interactive = v; }
 
-  public on(event: 'pointerup', cb: () => void): void {
-    this._live.on(event, cb);
+  public on(event: string, cb: Function): void {
+    this._live.on(event as any, cb as any);
   }
+
+  // Graphics primitive doesn't carry a string content. No-op for IAbstractGameObject completeness.
+  get text(): string { return ''; }
+  set text(_v: string) {}
+  get style(): any { return {}; }
+  set style(_v: any) {}
 
   get data(): Graphics {
     return this._live;
@@ -129,6 +177,7 @@ export class PxGraphics implements IGraphics {
     this._buildStroke();
     this._live.blendMode = this._fillBlend as BLEND_MODES;
     this._setHitArea();
+    this._applyPivot();
   }
 
   private _setHitArea() {
@@ -146,6 +195,26 @@ export class PxGraphics implements IGraphics {
       case 'roundRect':
         this._live.hitArea = new RoundedRectangle(s.x, s.y, s.w, s.h, s.radius);
         break;
+    }
+  }
+
+  // Anchor (0..1, 0..1) maps to PIXI pivot in local coords.
+  // Pivot of (b.x + ax * b.width, b.y + ay * b.height) makes anchor point coincide with (g.x, g.y).
+  private _applyPivot() {
+    if (!this._shape) return;
+    const b = this._shapeBounds(this._shape);
+    this._live.pivot.set(
+      b.x + this._anchorX * b.width,
+      b.y + this._anchorY * b.height,
+    );
+  }
+
+  private _shapeBounds(s: ShapeData): ShapeBounds {
+    switch (s.kind) {
+      case 'rect': return { x: s.x, y: s.y, width: s.w, height: s.h };
+      case 'circle': return { x: s.cx - s.r, y: s.cy - s.r, width: 2 * s.r, height: 2 * s.r };
+      case 'ellipse': return { x: s.cx - s.rx, y: s.cy - s.ry, width: 2 * s.rx, height: 2 * s.ry };
+      case 'roundRect': return { x: s.x, y: s.y, width: s.w, height: s.h };
     }
   }
 

@@ -91,6 +91,19 @@ export class PxText {
     if (this._data) this._data.alpha = alpha;
   }
 
+  get tint(): number { return this._data ? this._data.tint : 0xffffff; }
+  set tint(v: number) { if (this._data) this._data.tint = v; }
+
+  get angle(): number { return this._data ? this._data.angle : 0; }
+  set angle(v: number) { if (this._data) this._data.angle = v; }
+
+  get interactive(): boolean { return this._data ? this._data.interactive === true : false; }
+  set interactive(v: boolean) { if (this._data) this._data.interactive = v; }
+
+  public on(event: string, cb: Function): void {
+    if (this._data) this._data.on(event as any, cb as any);
+  }
+
   get anchor(): PxPoint {
     return (this._anchor as PxPoint);
   }

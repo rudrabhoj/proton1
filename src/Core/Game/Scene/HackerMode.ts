@@ -1,13 +1,10 @@
-import { Pino } from "../../Services/Pino";
 import { EntityFactory } from "../../Kernel/GameObjects/EntityFactory";
 import { Text } from "../../Kernel/GameObjects/Text";
+import { Graphic } from "../../Kernel/GameObjects/Graphic";
 import { IScene } from "../../Kernel/GameObjects/IScene";
 import { ISceneManager } from "../../Plugin/ISceneManager";
-import { IScreen } from "../../Plugin/IScreen";
-import { IGraphics } from "../../Plugin/IGraphics";
 import { Button } from "../GameItems/Button";
 import { Positions } from "../../Kernel/Data/ScaleMode";
-import { Config } from "../../Kernel/Control/Config";
 
 const FONT = "Maple Mono NF";
 const GREEN = 0x00ff66;
@@ -42,26 +39,13 @@ const HACKER_LINES = [
 ];
 
 export class HackerMode implements IScene {
-  private _pino: Pino;
   private _entityFactory: EntityFactory;
   private _sceneManager: ISceneManager;
-  private _screen: IScreen;
-  private _config: Config;
   private _back: Button;
-  private _ratio: number;
-  private _offsetX: number;
-  private _offsetY: number;
 
-  private _bg: IGraphics | null;
-  private _box: IGraphics | null;
-  private _scanlines: IGraphics[];
-  private _circle1: IGraphics | null;
-  private _circle2: IGraphics | null;
-  private _ellipse: IGraphics | null;
-  private _dottedRect: IGraphics | null;
-  private _headerText: Text | null;
   private _terminalText: Text | null;
-  private _cursorRect: IGraphics | null;
+  private _cursorRect: Graphic | null;
+  private _scanlines: Graphic[];
 
   private _lineIndex: number;
   private _displayed: string;
@@ -69,28 +53,14 @@ export class HackerMode implements IScene {
   private _cursorTimer: number;
   private _cursorVisible: boolean;
 
-  constructor(pino: Pino, entityFactory: EntityFactory, sceneManager: ISceneManager, screen: IScreen,
-  config: Config, button: Button) {
-    this._pino = pino;
+  constructor(entityFactory: EntityFactory, sceneManager: ISceneManager, button: Button) {
     this._entityFactory = entityFactory;
     this._sceneManager = sceneManager;
-    this._screen = screen;
-    this._config = config;
     this._back = button;
-    this._ratio = 1;
-    this._offsetX = 0;
-    this._offsetY = 0;
 
-    this._bg = null;
-    this._box = null;
-    this._scanlines = [];
-    this._circle1 = null;
-    this._circle2 = null;
-    this._ellipse = null;
-    this._dottedRect = null;
-    this._headerText = null;
     this._terminalText = null;
     this._cursorRect = null;
+    this._scanlines = [];
 
     this._lineIndex = 0;
     this._displayed = "";
@@ -102,12 +72,6 @@ export class HackerMode implements IScene {
   public async preload(): Promise<void> {}
 
   public create() {
-    this._ratio = Math.min(
-      this._config.displayWidth / this._config.width,
-      this._config.displayHeight / this._config.height,
-    );
-    this._offsetX = (this._config.displayWidth - this._config.width * this._ratio) / 2;
-    this._offsetY = (this._config.displayHeight - this._config.height * this._ratio) / 2;
     this._buildBackground();
     this._buildScanlines();
     this._buildOuterBox();
@@ -116,12 +80,6 @@ export class HackerMode implements IScene {
     this._buildCursor();
     this._buildBlinkenLights();
     this._buildBackButton();
-  }
-
-  private _placeGraphics(g: IGraphics, lx: number, ly: number) {
-    g.x = this._offsetX + lx * this._ratio;
-    g.y = this._offsetY + ly * this._ratio;
-    g.data.scale.set(this._ratio);
   }
 
   public update(dt: number) {
@@ -135,52 +93,44 @@ export class HackerMode implements IScene {
     this._scanlines = [];
   }
 
-  // ---------- builders ----------
+  // ---------- builders (all coords in logical 1080x1920 space) ----------
 
   private _buildBackground() {
-    const g = this._screen.createGraphics();
-    g.fillColor = 0x000000;
-    g.fillAlpha = 1;
-    g.borderStyle = 'none';
-    g.rect(0, 0, 1080, 1920);
-    this._placeGraphics(g, 0, 0);
-    this._bg = g;
-    this._sceneManager.addObject(g.data);
+    const g = this._entityFactory.graphic(0, 0);
+    g.graphics.fillColor = 0x000000;
+    g.graphics.fillAlpha = 1;
+    g.graphics.borderStyle = 'none';
+    g.graphics.rect(0, 0, 1080, 1920);
   }
 
   private _buildScanlines() {
     for (let y = 0; y < 1920; y += 6) {
-      const g = this._screen.createGraphics();
-      g.fillColor = GREEN;
-      g.fillAlpha = 0.05;
-      g.borderStyle = 'none';
-      g.rect(0, 0, 1080, 1);
-      this._placeGraphics(g, 0, y);
+      const g = this._entityFactory.graphic(0, y);
+      g.graphics.fillColor = GREEN;
+      g.graphics.fillAlpha = 0.05;
+      g.graphics.borderStyle = 'none';
+      g.graphics.rect(0, 0, 1080, 1);
       this._scanlines.push(g);
-      this._sceneManager.addObject(g.data);
     }
   }
 
   private _buildOuterBox() {
-    const g = this._screen.createGraphics();
-    g.fillAlpha = 0;
-    g.borderColor = GREEN;
-    g.borderWidth = 4;
-    g.borderStyle = 'solid';
-    g.rect(0, 0, 1000, 1500);
-    this._placeGraphics(g, 40, 200);
-    this._box = g;
-    this._sceneManager.addObject(g.data);
+    const g = this._entityFactory.graphic(40, 200);
+    g.graphics.fillAlpha = 0;
+    g.graphics.borderColor = GREEN;
+    g.graphics.borderWidth = 4;
+    g.graphics.borderStyle = 'solid';
+    g.graphics.rect(0, 0, 1000, 1500);
   }
 
   private _buildHeader() {
-    this._headerText = this._entityFactory.text(540, 130, "▓▒░ TERMINAL v0.42  ░▒▓", {
+    const headerText = this._entityFactory.text(540, 130, "▓▒░ TERMINAL v0.42  ░▒▓", {
       fontSize: 44,
       fontFamily: FONT,
       fill: GREEN,
     });
-    this._headerText.position.anchorX = 0.5;
-    this._headerText.position.anchorY = 0.5;
+    headerText.position.anchorX = 0.5;
+    headerText.position.anchorY = 0.5;
   }
 
   private _buildTerminal() {
@@ -195,62 +145,48 @@ export class HackerMode implements IScene {
   }
 
   private _buildCursor() {
-    const g = this._screen.createGraphics();
-    g.fillColor = GREEN;
-    g.fillAlpha = 1;
-    g.borderStyle = 'none';
-    g.rect(0, 0, 18, 32);
-    this._placeGraphics(g, 80, 244);
+    const g = this._entityFactory.graphic(80, 244);
+    g.graphics.fillColor = GREEN;
+    g.graphics.fillAlpha = 1;
+    g.graphics.borderStyle = 'none';
+    g.graphics.rect(0, 0, 18, 32);
     this._cursorRect = g;
-    this._sceneManager.addObject(g.data);
   }
 
   // Demonstrates circles, ellipse, dotted/dashed borders, alpha blends.
   private _buildBlinkenLights() {
-    const c1 = this._screen.createGraphics();
-    c1.fillColor = 0xff3344;
-    c1.fillAlpha = 0.85;
-    c1.fillBlend = 'add';
-    c1.borderColor = GREEN;
-    c1.borderWidth = 2;
-    c1.borderStyle = 'dotted';
-    c1.circle(0, 0, 26);
-    this._placeGraphics(c1, 120, 1750);
-    this._circle1 = c1;
-    this._sceneManager.addObject(c1.data);
+    const c1 = this._entityFactory.graphic(120, 1750);
+    c1.graphics.fillColor = 0xff3344;
+    c1.graphics.fillAlpha = 0.85;
+    c1.graphics.fillBlend = 'add';
+    c1.graphics.borderColor = GREEN;
+    c1.graphics.borderWidth = 2;
+    c1.graphics.borderStyle = 'dotted';
+    c1.graphics.circle(0, 0, 26);
 
-    const c2 = this._screen.createGraphics();
-    c2.fillColor = 0xffaa00;
-    c2.fillAlpha = 0.85;
-    c2.fillBlend = 'add';
-    c2.borderColor = GREEN;
-    c2.borderWidth = 2;
-    c2.borderStyle = 'dotted';
-    c2.circle(0, 0, 26);
-    this._placeGraphics(c2, 200, 1750);
-    this._circle2 = c2;
-    this._sceneManager.addObject(c2.data);
+    const c2 = this._entityFactory.graphic(200, 1750);
+    c2.graphics.fillColor = 0xffaa00;
+    c2.graphics.fillAlpha = 0.85;
+    c2.graphics.fillBlend = 'add';
+    c2.graphics.borderColor = GREEN;
+    c2.graphics.borderWidth = 2;
+    c2.graphics.borderStyle = 'dotted';
+    c2.graphics.circle(0, 0, 26);
 
-    const e = this._screen.createGraphics();
-    e.fillColor = DIM_GREEN;
-    e.fillAlpha = 0.4;
-    e.borderColor = GREEN;
-    e.borderWidth = 3;
-    e.borderStyle = 'dashed';
-    e.ellipse(0, 0, 180, 40);
-    this._placeGraphics(e, 800, 1750);
-    this._ellipse = e;
-    this._sceneManager.addObject(e.data);
+    const e = this._entityFactory.graphic(800, 1750);
+    e.graphics.fillColor = DIM_GREEN;
+    e.graphics.fillAlpha = 0.4;
+    e.graphics.borderColor = GREEN;
+    e.graphics.borderWidth = 3;
+    e.graphics.borderStyle = 'dashed';
+    e.graphics.ellipse(0, 0, 180, 40);
 
-    const dr = this._screen.createGraphics();
-    dr.fillAlpha = 0;
-    dr.borderColor = GREEN;
-    dr.borderWidth = 2;
-    dr.borderStyle = 'dashed';
-    dr.rect(0, 0, 960, 60);
-    this._placeGraphics(dr, 60, 1620);
-    this._dottedRect = dr;
-    this._sceneManager.addObject(dr.data);
+    const dr = this._entityFactory.graphic(60, 1620);
+    dr.graphics.fillAlpha = 0;
+    dr.graphics.borderColor = GREEN;
+    dr.graphics.borderWidth = 2;
+    dr.graphics.borderStyle = 'dashed';
+    dr.graphics.rect(0, 0, 960, 60);
   }
 
   private _buildBackButton() {
@@ -301,8 +237,8 @@ export class HackerMode implements IScene {
     const lineNum = lines.length - 1;
     const charWidth = 18;
     const lineHeight = 38;
-    this._cursorRect.x = this._offsetX + (80 + currentLine.length * charWidth) * this._ratio;
-    this._cursorRect.y = this._offsetY + (244 + lineNum * lineHeight) * this._ratio;
+    this._cursorRect.position.x = 80 + currentLine.length * charWidth;
+    this._cursorRect.position.y = 244 + lineNum * lineHeight;
   }
 
   private _tickCursor(dt: number) {
@@ -311,7 +247,7 @@ export class HackerMode implements IScene {
       this._cursorTimer = 0;
       this._cursorVisible = !this._cursorVisible;
       if (this._cursorRect) {
-        this._cursorRect.fillAlpha = this._cursorVisible ? 1 : 0;
+        this._cursorRect.graphics.fillAlpha = this._cursorVisible ? 1 : 0;
       }
     }
   }
