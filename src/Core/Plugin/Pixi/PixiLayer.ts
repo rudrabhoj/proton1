@@ -1,31 +1,34 @@
-import * as PIXI from "pixi.js"
+import { Application, Assets, Container, Sprite, Texture, Ticker } from "pixi.js";
 import { Resource } from "../../Kernel/Data/Resource";
 import { PxText } from "./PxText";
 export class PixiLayer {
-  private _app: PIXI.Application | null;
+  private _app: Application | null;
   private _pxText: PxText;
+  private _pendingAliases: string[];
 
   constructor(pxText: PxText) {
     this._app = null;
     this._pxText = pxText;
+    this._pendingAliases = [];
   }
 
   get fps(): number {
-    return PIXI.Ticker.shared.FPS;
+    return Ticker.shared.FPS;
   }
 
-  public createApplication(width: number, height: number, antialias: boolean, transparent: boolean) {
+  public async createApplication(width: number, height: number, antialias: boolean, transparent: boolean) {
     let alphaValue = 1;
     if (transparent) alphaValue = 0;
 
-    let app = new PIXI.Application({
+    let app = new Application();
+    await app.init({
       width: width,
       height: height,
       antialias: antialias,
       backgroundAlpha: alphaValue
     });
 
-    document.body.appendChild(app.view);
+    document.body.appendChild(app.canvas);
 
     this._app = app;
   }
@@ -40,7 +43,7 @@ export class PixiLayer {
     if (!this._app) return;
 
     let stage = this._app.stage;
-    let oldRoot = stage.children[0] as PIXI.Container;
+    let oldRoot = stage.children[0] as Container;
 
     if (oldRoot) {
       for (let c = 0; c < oldRoot.children.length; c++) {
@@ -53,48 +56,39 @@ export class PixiLayer {
     stage.addChild(newContainer);
   }
 
-  public createContainer(): PIXI.Container {
-    return new PIXI.Container();
+  public createContainer(): Container {
+    return new Container();
   }
 
   public createText(text: string, style: any): PxText {
     let pt = this._pxText.createNew();
-    pt.init(text, ((this._app as PIXI.Application).renderer as PIXI.Renderer), style);
+    pt.init(text, (this._app as Application).renderer, style);
 
     return pt;
   }
 
-  public createParticleContainer(
-    maxSize: number = 1500,
-    properties: PIXI.IParticleProperties = {},
-    batchSize?: number,
-    autoResize?: boolean
-  ): PIXI.ParticleContainer {
-    return new PIXI.ParticleContainer(maxSize, properties, batchSize, autoResize);
-  }
-
-  public createSprite(sheet: string, frame?: string): PIXI.Sprite | null {
+  public createSprite(sheet: string, frame?: string): Sprite | null {
     let texture = this._getTexture(sheet, frame);
 
     if (texture) {
-      return new PIXI.Sprite(texture);
+      return new Sprite(texture);
     } else {
       return null;
     }
   }
 
-  public updateTexture(sprite: PIXI.Sprite, sheet: string, frame?: string) {
+  public updateTexture(sprite: Sprite, sheet: string, frame?: string) {
     let texture = this._getTexture(sheet, frame);
     if (texture) {
       sprite.texture = texture;
     }
   }
 
-  public addObject(container: PIXI.Container, child: any) {
+  public addObject(container: Container, child: any) {
     container.addChild(child);
   }
 
-  public removeObject(container: PIXI.Container, child: any) {
+  public removeObject(container: Container, child: any) {
     container.removeChild(child);
   }
 
@@ -107,16 +101,19 @@ export class PixiLayer {
   }
 
   public async downloadResources(onProgress: Function, onComplete: Function): Promise<void> {
-    return new Promise((resolve: Function) => {
-      PIXI.Loader.shared.onProgress.once(() => {
-        onProgress(PIXI.Loader.shared.progress);
-      });
+    let aliases = this._pendingAliases;
+    this._pendingAliases = [];
 
-      PIXI.Loader.shared.load(() => {
-        resolve();
-        onComplete();
-      });
+    if (aliases.length === 0) {
+      onComplete();
+      return;
+    }
+
+    await Assets.load(aliases, (progress: number) => {
+      onProgress(progress);
     });
+
+    onComplete();
   }
 
   private _addResources(resList: Resource[]) {
@@ -124,23 +121,23 @@ export class PixiLayer {
       let name = resList[c].name;
       let url = resList[c].url;
 
-      PIXI.Loader.shared.add(name, url);
+      Assets.add({ alias: name, src: url });
+      this._pendingAliases.push(name);
     }
   }
 
-  private _getTexture(sheet: string, frame?: string): PIXI.Texture | null {
+  private _getTexture(sheet: string, frame?: string): Texture | null {
     if (frame) {
-      let spritesheet = PIXI.Loader.shared.resources[sheet].spritesheet;
+      let spritesheet = Assets.get(sheet);
 
-      if (spritesheet) {
+      if (spritesheet && spritesheet.textures) {
         return spritesheet.textures[frame];
       } else {
         console.error("NO spritesheet '%s' found!", sheet);
         return null;
       }
     } else {
-      return PIXI.Texture.from(sheet);
+      return Texture.from(sheet);
     }
   }
 }
-

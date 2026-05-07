@@ -1,5 +1,5 @@
 import { PxPoint } from './PxPoint';
-import {Text, Sprite, Renderer, SCALE_MODES} from 'pixi.js';
+import { Text, Sprite, Renderer } from 'pixi.js';
 
 export class PxText {
   private _pxPoint: PxPoint;
@@ -124,8 +124,8 @@ export class PxText {
     this._renderer = renderer;
     this._style = style;
     this._fill = style.fill;
-    this._rawText = new Text(text, style);
-    this._data = new Sprite(this._renderer.generateTexture(this._rawText, SCALE_MODES.LINEAR, 1));
+    this._rawText = new Text({ text, style });
+    this._data = new Sprite(this._renderer.generateTexture(this._rawText));
 
     this._scale = this._pxPoint.createNew(1, 1, (xVal: number)=> {
       if (this._data != null) this._data.scale.x = xVal;
@@ -228,7 +228,7 @@ export class PxText {
 
   private _updateTexture() {
     if (this._data != null && this._renderer != null && this._rawText != null) {
-      this._data.texture = this._renderer.generateTexture(this._rawText, SCALE_MODES.LINEAR, 1);
+      this._data.texture = this._renderer.generateTexture(this._rawText);
     } else {
       console.error("Can not update text texture before init!");
     }

@@ -34,8 +34,8 @@ export class CardWorld {
     this._fireMode = fireMode;
   }
 
-  public startGame() {
-    this._screen.startRenderer(document.documentElement.clientWidth, document.documentElement.clientHeight, true, false);
+  public async startGame() {
+    await this._screen.startRenderer(document.documentElement.clientWidth, document.documentElement.clientHeight, true, false);
 
     this._startLoop();
     this._initScenes();

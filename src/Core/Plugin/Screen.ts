@@ -12,22 +12,12 @@ export class Screen implements IScreen {
     return this._pixiLayer.fps;
   }
 
-  public startRenderer(width: number, height: number, antialias: boolean, transparent: boolean) {
-    this._pixiLayer.createApplication(width, height, antialias, transparent);
+  public async startRenderer(width: number, height: number, antialias: boolean, transparent: boolean): Promise<void> {
+    await this._pixiLayer.createApplication(width, height, antialias, transparent);
   }
 
-  public createContainer(
-    particleMode: boolean = false,
-    maxSize: number = 1500,
-    properties: any = {},
-    batchSize?: number,
-    autoResize?: boolean
-  ): any {
-    if (particleMode) {
-      return this._pixiLayer.createParticleContainer(maxSize, properties, batchSize, autoResize);
-    } else {
-      return this._pixiLayer.createContainer();
-    }
+  public createContainer(): any {
+    return this._pixiLayer.createContainer();
   }
 
   public createSprite(sheet: string, frame?: string): IAbstractGameObject {
@@ -43,4 +33,3 @@ export class Screen implements IScreen {
     this._pixiLayer.updateTexture((sprite as any), sheet, frame);
   }
 }
-
