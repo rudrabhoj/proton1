@@ -1,4 +1,4 @@
-import { Graphics, type BLEND_MODES } from 'pixi.js';
+import { Circle, Ellipse, Graphics, Rectangle, RoundedRectangle, type BLEND_MODES } from 'pixi.js';
 import { Pino } from '../../Services/Pino';
 import { IGraphics, BlendModeName, BorderStyle } from '../IGraphics';
 
@@ -97,6 +97,19 @@ export class PxGraphics implements IGraphics {
     this._redraw();
   }
 
+  get x(): number { return this._live.x; }
+  set x(v: number) { this._live.x = v; }
+
+  get y(): number { return this._live.y; }
+  set y(v: number) { this._live.y = v; }
+
+  get interactive(): boolean { return this._live.interactive === true; }
+  set interactive(v: boolean) { this._live.interactive = v; }
+
+  public on(event: 'pointerup', cb: () => void): void {
+    this._live.on(event, cb);
+  }
+
   get data(): Graphics {
     return this._live;
   }
@@ -115,6 +128,25 @@ export class PxGraphics implements IGraphics {
     this._buildFill();
     this._buildStroke();
     this._live.blendMode = this._fillBlend as BLEND_MODES;
+    this._setHitArea();
+  }
+
+  private _setHitArea() {
+    const s = this._shape!;
+    switch (s.kind) {
+      case 'rect':
+        this._live.hitArea = new Rectangle(s.x, s.y, s.w, s.h);
+        break;
+      case 'circle':
+        this._live.hitArea = new Circle(s.cx, s.cy, s.r);
+        break;
+      case 'ellipse':
+        this._live.hitArea = new Ellipse(s.cx, s.cy, s.rx, s.ry);
+        break;
+      case 'roundRect':
+        this._live.hitArea = new RoundedRectangle(s.x, s.y, s.w, s.h, s.radius);
+        break;
+    }
   }
 
   private _buildShape() {

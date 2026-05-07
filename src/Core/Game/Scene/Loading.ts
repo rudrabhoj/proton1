@@ -87,12 +87,12 @@ export class Loading implements IScene {
   private async _loadFiles(): Promise<void> {
     return new Promise((resolve: Function, reject: Function) => {
       let resourceList = this._resource.createArray([
-        {name: "main", url: "assets/main.json"}
+        {name: "main", url: "assets/main.json"},
+        {name: "maple-font", url: "assets/fonts/MapleMono-NF-Regular.ttf", family: "Maple Mono NF"}
       ]);
 
       this._gfxLoader.addResources(resourceList);
       this._gfxLoader.download(() => {}, () => {
-        //console.log("Download Complete"); 
         resolve();
       });
     });

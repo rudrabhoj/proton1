@@ -130,8 +130,13 @@ export class PixiLayer {
     for (let c = 0; c < resList.length; c++) {
       let name = resList[c].name;
       let url = resList[c].url;
+      let family = resList[c].family;
 
-      Assets.add({ alias: name, src: url });
+      if (family) {
+        Assets.add({ alias: name, src: url, data: { family } });
+      } else {
+        Assets.add({ alias: name, src: url });
+      }
       this._pendingAliases.push(name);
     }
   }

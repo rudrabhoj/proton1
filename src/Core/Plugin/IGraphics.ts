@@ -16,6 +16,12 @@ export interface IGraphics {
   borderAlpha: number;
   borderStyle: BorderStyle;
 
+  x: number;
+  y: number;
+
+  interactive: boolean;
+  on(event: 'pointerup', cb: () => void): void;
+
   redraw(): void;
 
   readonly data: any;

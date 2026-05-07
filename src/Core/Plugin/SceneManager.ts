@@ -56,13 +56,13 @@ export class SceneManager {
     }
   }
 
-  public addObject(obj: IAbstractGameObject) {
+  public addObject(obj: any) {
     if (this._currentScene) {
       this._pixiLayer.addObject(this._currentScene.container, obj);
     }
   }
 
-  public removeObject(obj: IAbstractGameObject) {
+  public removeObject(obj: any) {
     if (this._currentScene) {
       this._pixiLayer.removeObject(this._currentScene.container, obj);
     }

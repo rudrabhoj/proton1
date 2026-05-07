@@ -7,6 +7,7 @@ import { Menu } from './Game/Scene/Menu';
 import { CardMode } from './Game/Scene/CardMode';
 import { MixMode } from './Game/Scene/MixMode';
 import { FireMode } from './Game/Scene/FireMode';
+import { HackerMode } from './Game/Scene/HackerMode';
 export class CardWorld {
   private _config: Config;
   private _loop: Loop;
@@ -18,10 +19,11 @@ export class CardWorld {
   private _cardMode: CardMode;
   private _mixMode: MixMode;
   private _fireMode: FireMode;
-  
+  private _hackerMode: HackerMode;
+
 
   constructor(config: Config, loop: Loop, screen: IScreen, sceneManager: ISceneManager,
-  loading: Loading, menu: Menu, cardMode: CardMode, mixMode: MixMode, fireMode: FireMode) {
+  loading: Loading, menu: Menu, cardMode: CardMode, mixMode: MixMode, fireMode: FireMode, hackerMode: HackerMode) {
     this._config = config;
     this._loop = loop;
     this._screen = screen;
@@ -32,6 +34,7 @@ export class CardWorld {
     this._cardMode = cardMode;
     this._mixMode = mixMode;
     this._fireMode = fireMode;
+    this._hackerMode = hackerMode;
   }
 
   public async startGame() {
@@ -54,6 +57,7 @@ export class CardWorld {
     this._sceneManager.addScene('CardMode', this._cardMode);
     this._sceneManager.addScene('MixMode', this._mixMode);
     this._sceneManager.addScene('FireMode', this._fireMode);
+    this._sceneManager.addScene('HackerMode', this._hackerMode);
   }
 
   private _startFirstScene() {

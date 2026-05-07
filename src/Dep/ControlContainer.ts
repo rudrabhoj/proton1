@@ -8,6 +8,7 @@ import { FPSCounter } from '../Core/Game/GameItems/FPSCounter.js';
 import { TextImage } from '../Core/Game/GameItems/TextImage.js';
 import { CardMode } from '../Core/Game/Scene/CardMode.js';
 import { FireMode } from '../Core/Game/Scene/FireMode.js';
+import { HackerMode } from '../Core/Game/Scene/HackerMode.js';
 import { Loading } from '../Core/Game/Scene/Loading.js';
 import { Menu } from '../Core/Game/Scene/Menu.js';
 import { MixMode } from '../Core/Game/Scene/MixMode.js';
@@ -55,6 +56,7 @@ protected _FPSCounter: any;
 protected _TextImage: any;
 protected _CardMode: any;
 protected _FireMode: any;
+protected _HackerMode: any;
 protected _Loading: any;
 protected _Menu: any;
 protected _MixMode: any;
@@ -111,6 +113,7 @@ this._FPSCounter = this._smartDepend.addModule(FPSCounter, false);
 this._TextImage = this._smartDepend.addModule(TextImage, false);
 this._CardMode = this._smartDepend.addModule(CardMode, false);
 this._FireMode = this._smartDepend.addModule(FireMode, false);
+this._HackerMode = this._smartDepend.addModule(HackerMode, false);
 this._Loading = this._smartDepend.addModule(Loading, false);
 this._Menu = this._smartDepend.addModule(Menu, false);
 this._MixMode = this._smartDepend.addModule(MixMode, false);
@@ -156,6 +159,7 @@ this._smartDepend.addDependency(this._CardWorld, this._Menu);
 this._smartDepend.addDependency(this._CardWorld, this._CardMode);
 this._smartDepend.addDependency(this._CardWorld, this._MixMode);
 this._smartDepend.addDependency(this._CardWorld, this._FireMode);
+this._smartDepend.addDependency(this._CardWorld, this._HackerMode);
 
 
 this._smartDepend.addDependency(this._Background, this._EntityFactory);
@@ -197,6 +201,14 @@ this._smartDepend.addDependency(this._FireMode, this._Background);
 this._smartDepend.addDependency(this._FireMode, this._ParticleSystem);
 
 
+this._smartDepend.addDependency(this._HackerMode, this._Pino);
+this._smartDepend.addDependency(this._HackerMode, this._EntityFactory);
+this._smartDepend.addDependency(this._HackerMode, this._SceneManager);
+this._smartDepend.addDependency(this._HackerMode, this._Screen);
+this._smartDepend.addDependency(this._HackerMode, this._Config);
+this._smartDepend.addDependency(this._HackerMode, this._Button);
+
+
 this._smartDepend.addDependency(this._Loading, this._GfxLoader);
 this._smartDepend.addDependency(this._Loading, this._Resource);
 this._smartDepend.addDependency(this._Loading, this._Background);
@@ -206,6 +218,8 @@ this._smartDepend.addDependency(this._Loading, this._SceneManager);
 
 this._smartDepend.addDependency(this._Menu, this._EntityFactory);
 this._smartDepend.addDependency(this._Menu, this._SceneManager);
+this._smartDepend.addDependency(this._Menu, this._Screen);
+this._smartDepend.addDependency(this._Menu, this._Config);
 this._smartDepend.addDependency(this._Menu, this._Button);
 this._smartDepend.addDependency(this._Menu, this._Sprite);
 this._smartDepend.addDependency(this._Menu, this._Background);
