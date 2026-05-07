@@ -90,7 +90,7 @@ export class Menu implements IScene {
 
   private _start_run(): void {
     const rng = rng_from_seed(this._runState.seed);
-    this._shopState.init_first_shop(rng);
+    this._shopState.init_first_shop(rng, this._runState.level);
     void this._inventory;  // wired but no init needed — fresh instance ready
     this._sceneManager.startScene('Shop');
   }

@@ -1,7 +1,7 @@
 // Generate a deterministic opponent snapshot given run state.
 // No backend; v1 just picks plausible items by player level + day + seed.
 
-import { CATALOG } from './ItemDef';
+import { CATALOG, pool_for_level } from './ItemDef';
 import { ItemInstance, make_instance } from './ItemInstance';
 import { rng_from_seed, rng_int, rng_pick } from './Rng';
 
@@ -20,29 +20,15 @@ const NAMES: ReadonlyArray<string> = [
   'l00p_back', 'sn1pp3r', '0xC4FE', 'kek_w', 'b1nary_st0rm',
 ];
 
-function pick_items_for_level(rng: () => number, level: number): string[] {
-  // Pool of item ids appropriate for the level.
-  // Higher levels may include rarer items.
-  const tier_a = ['packet', 'strike', 'sniffer'];                  // common
-  const tier_b = ['chain', 'breach', 'shielded_ack', 'leak'];      // mid
-  const tier_c = ['fail2ban', 'honeypot', 'overflow', 'patch_kit', 'entropy', 'deflect']; // higher
-  const tier_d = ['zero_day'];                                     // rare
-
-  const pool = [
-    ...tier_a, ...tier_a,
-    ...tier_b, ...(level >= 3 ? tier_b : []),
-    ...(level >= 4 ? tier_c : []),
-    ...(level >= 6 ? tier_d : []),
-  ];
-  return pool.length > 0 ? pool : tier_a;
-}
-
 export function generate_opponent(run_seed: number, day: number, player_level: number): OpponentSnapshot {
   const rng = rng_from_seed((run_seed ^ (day * 0x9E3779B1)) >>> 0);
   const op_level = Math.max(1, player_level - 1 + rng_int(rng, 0, 2));
   const slots_filled = Math.min(5, 3 + Math.floor(day / 2));
   const board: Array<ItemInstance | null> = new Array(5).fill(null);
-  const pool = pick_items_for_level(rng, op_level);
+  // Same pool the shop draws from at this level — see pool_for_level in
+  // ItemDef. Symmetric pool means symmetric ceiling: any item the player
+  // can roll, the opponent can also field.
+  const pool = pool_for_level(op_level);
   for (let i = 0; i < slots_filled; i++) {
     const id = rng_pick(rng, pool);
     const has_def = CATALOG.some((d) => d.id === id);

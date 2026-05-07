@@ -58,6 +58,11 @@ export class Battle implements IScene {
   private _enemy_last_fire: number[];
   private _player_cd_full: number[];
   private _enemy_cd_full: number[];
+  // Pending jam extension per slot (ms). Stretches the bar's drain duration
+  // so a jammed slot's bar reaches zero at the same instant the delayed fire
+  // actually plays back. Reset on the slot's next fire.
+  private _player_cd_extend: number[];
+  private _enemy_cd_extend: number[];
 
   private _result: BattleResult | null;
   private _opponent: OpponentSnapshot | null;
@@ -105,6 +110,8 @@ export class Battle implements IScene {
     this._enemy_last_fire = [0, 0, 0, 0, 0];
     this._player_cd_full = [0, 0, 0, 0, 0];
     this._enemy_cd_full = [0, 0, 0, 0, 0];
+    this._player_cd_extend = [0, 0, 0, 0, 0];
+    this._enemy_cd_extend = [0, 0, 0, 0, 0];
     this._outcome_text = null;
     this._outcome_pulse_low = 0;
     this._outcome_pulse_high = 1;
@@ -134,6 +141,8 @@ export class Battle implements IScene {
     this._enemy_last_fire = [0, 0, 0, 0, 0];
     this._player_cd_full = [0, 0, 0, 0, 0];
     this._enemy_cd_full = [0, 0, 0, 0, 0];
+    this._player_cd_extend = [0, 0, 0, 0, 0];
+    this._enemy_cd_extend = [0, 0, 0, 0, 0];
     this._outcome_text = null;
     this._outcome_pulse_low = 0;
     this._outcome_pulse_high = 1;
@@ -359,16 +368,34 @@ export class Battle implements IScene {
     if (!this._log_view) return;
 
     if (entry.kind === 'fire') {
-      const mc = entry.multicast && entry.multicast > 1 ? ` x${entry.multicast}` : '';
-      const label = this._side_label(entry.side, entry.slot);
-      if (entry.side === 'player') {
-        this._enemy_hp -= entry.dmg;
-        this._player_last_fire[entry.slot] = entry.t_ms;
-        this._log_view.add_line(entry.t_ms, label, `${entry.item}${mc} +${entry.dmg}`);
-      } else {
-        this._player_hp -= entry.dmg;
-        this._enemy_last_fire[entry.slot] = entry.t_ms;
-        this._log_view.add_line(entry.t_ms, label, `${entry.item}${mc} -${entry.dmg}`);
+      // HP always moves with a fire entry.
+      if (entry.side === 'player') this._enemy_hp -= entry.dmg;
+      else this._player_hp -= entry.dmg;
+      // Cooldown bar refreshes only on arm fires (normal damage, multicast
+      // shots, and silent reactive arming). Trigger fires (honeypot striking
+      // the enemy, deflect reflecting an incoming hit) are mid-cycle events
+      // that should not restart the bar — the slot's actual cooldown clock
+      // is still ticking from its prior arm.
+      if (!entry.trigger) {
+        if (entry.side === 'player') {
+          this._player_last_fire[entry.slot] = entry.t_ms;
+          this._player_cd_extend[entry.slot] = 0;
+        } else {
+          this._enemy_last_fire[entry.slot] = entry.t_ms;
+          this._enemy_cd_extend[entry.slot] = 0;
+        }
+      }
+      // Deflect's reflection over-subtracts the deflector's HP via the prior
+      // fire entry; restore the reflected portion to keep display in sync.
+      if (entry.item === 'deflect') {
+        if (entry.side === 'player') this._player_hp += entry.dmg;
+        else this._enemy_hp += entry.dmg;
+      }
+      if (!entry.silent) {
+        const mc = entry.multicast && entry.multicast > 1 ? ` x${entry.multicast}` : '';
+        const label = this._side_label(entry.side, entry.slot);
+        const sign = entry.side === 'player' ? '+' : '-';
+        this._log_view.add_line(entry.t_ms, label, `${entry.item}${mc} ${sign}${entry.dmg}`);
       }
       return;
     }
@@ -382,12 +409,45 @@ export class Battle implements IScene {
     }
 
     if (entry.kind === 'effect_apply') {
+      // effect_apply IS a slot-fire (patch_kit, fail2ban, leak, overflow,
+      // entropy). Refresh source slot's bar + clear its jam extension.
+      if (entry.side === 'player') {
+        this._player_last_fire[entry.slot] = entry.t_ms;
+        this._player_cd_extend[entry.slot] = 0;
+      } else {
+        this._enemy_last_fire[entry.slot] = entry.t_ms;
+        this._enemy_cd_extend[entry.slot] = 0;
+      }
+      // Jam: every one of the OPPOSITE side's slot cooldown bars stretches
+      // by magnitude so they reach zero in step with the delayed sim fires.
+      if (entry.effect === 'jam') {
+        const target = entry.side === 'player' ? this._enemy_cd_extend : this._player_cd_extend;
+        for (let i = 0; i < target.length; i++) target[i] += entry.magnitude;
+      }
       const label = this._side_label(entry.side, entry.slot);
       this._log_view.add_line(entry.t_ms, label, `${entry.effect} +${entry.stacks}`);
       return;
     }
 
     if (entry.kind === 'patch_block') {
+      if (entry.slot !== undefined) {
+        // Slot fire: shielded_ack just queued absorption. Refresh its bar.
+        if (entry.side === 'player') {
+          this._player_last_fire[entry.slot] = entry.t_ms;
+          this._player_cd_extend[entry.slot] = 0;
+        } else {
+          this._enemy_last_fire[entry.slot] = entry.t_ms;
+          this._enemy_cd_extend[entry.slot] = 0;
+        }
+      } else {
+        // Consumption: the prior fire entry already subtracted the full hit
+        // from this side's display HP. The simulator only took (hit - blocked)
+        // off actual HP, so restore the absorbed portion to keep display in
+        // sync. Without this, every blocked hit drives display farther below
+        // the simulator's true HP and the bar reads zero long before death.
+        if (entry.side === 'player') this._player_hp += entry.magnitude;
+        else this._enemy_hp += entry.magnitude;
+      }
       const label = this._side_label_no_slot(entry.side);
       this._log_view.add_line(entry.t_ms, label, `patch block ${entry.magnitude}`);
       return;
@@ -396,6 +456,16 @@ export class Battle implements IScene {
     if (entry.kind === 'repair') {
       if (entry.side === 'player') this._player_hp = Math.min(this._player_hp_max, this._player_hp + entry.amount);
       else this._enemy_hp = Math.min(this._enemy_hp_max, this._enemy_hp + entry.amount);
+      // patch_kit fires emit a slot — refresh its cooldown bar.
+      if (entry.slot !== undefined) {
+        if (entry.side === 'player') {
+          this._player_last_fire[entry.slot] = entry.t_ms;
+          this._player_cd_extend[entry.slot] = 0;
+        } else {
+          this._enemy_last_fire[entry.slot] = entry.t_ms;
+          this._enemy_cd_extend[entry.slot] = 0;
+        }
+      }
       const label = this._side_label_no_slot(entry.side);
       this._log_view.add_line(entry.t_ms, label, `repair +${entry.amount}`);
       return;
@@ -413,13 +483,13 @@ export class Battle implements IScene {
     }
   }
 
-  private _side_label(side: 'player' | 'enemy', slot: number): string {
-    if (side === 'player') return `D${slot + 1}`;
+  private _side_label(side: 'player' | 'enemy', _slot: number): string {
+    if (side === 'player') return 'DylanDan';
     return this._opponent?.name ?? 'enemy';
   }
 
   private _side_label_no_slot(side: 'player' | 'enemy'): string {
-    if (side === 'player') return 'you';
+    if (side === 'player') return 'DylanDan';
     return this._opponent?.name ?? 'enemy';
   }
 
@@ -431,15 +501,19 @@ export class Battle implements IScene {
   // Per-slot cooldown bar: starts full, drains to 0 at the moment the item
   // fires, then snaps back to full as last_fire is updated. Alpha tweens up
   // and blend goes 'add' near zero so an imminent trigger glows as a cue.
+  // Extension array stretches the drain duration when a slot is jammed so
+  // the bar reaches zero exactly when the delayed fire actually plays back.
   private _update_cd_bars(): void {
-    this._tick_side_cd_bars(this._player_cd_bars, this._player_cd_full, this._player_last_fire);
-    this._tick_side_cd_bars(this._enemy_cd_bars, this._enemy_cd_full, this._enemy_last_fire);
+    this._tick_side_cd_bars(this._player_cd_bars, this._player_cd_full, this._player_last_fire, this._player_cd_extend);
+    this._tick_side_cd_bars(this._enemy_cd_bars, this._enemy_cd_full, this._enemy_last_fire, this._enemy_cd_extend);
   }
 
-  private _tick_side_cd_bars(bars: (Graphic | null)[], cd_full_arr: number[], last_fire_arr: number[]): void {
+  private _tick_side_cd_bars(
+    bars: (Graphic | null)[], cd_full_arr: number[], last_fire_arr: number[], extend_arr: number[],
+  ): void {
     for (let i = 0; i < bars.length; i++) {
       const bar = bars[i];
-      const cd = cd_full_arr[i];
+      const cd = cd_full_arr[i] + extend_arr[i];
       if (!bar || cd <= 0) continue;
       const elapsed = this._playback_t - last_fire_arr[i];
       const remaining = Math.max(0, Math.min(1, 1 - elapsed / cd));

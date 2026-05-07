@@ -2,7 +2,7 @@
 // Pure data + mutations.
 
 import { ItemInstance, make_instance } from './ItemInstance';
-import { CATALOG } from './ItemDef';
+import { pool_for_level } from './ItemDef';
 
 const SHOP_SLOTS = 5;
 const REFRESH_BASE_COST = 2;
@@ -43,16 +43,20 @@ export class ShopState {
 
   // -- Roll / refresh -----------------------------------------------------
 
-  public roll(rng: () => number): void {
+  // Roll the visible slots. The pool is the same one OpponentGen draws from
+  // at this level, so any item the player can buy, the opponent can also
+  // field. Asymmetric pools translate directly into asymmetric win-rates.
+  public roll(rng: () => number, level: number): void {
+    const pool = pool_for_level(level);
     for (let i = 0; i < SHOP_SLOTS; i++) {
-      const def = CATALOG[Math.floor(rng() * CATALOG.length)];
-      this._slots[i] = make_instance(def.id, 1);
+      const id = pool[Math.floor(rng() * pool.length)];
+      this._slots[i] = make_instance(id, 1);
     }
   }
 
-  public refresh(rng: () => number): void {
+  public refresh(rng: () => number, level: number): void {
     this._refreshes_this_round += 1;
-    this.roll(rng);
+    this.roll(rng, level);
   }
 
   public freeze(): void {
@@ -60,18 +64,18 @@ export class ShopState {
   }
 
   // Called between rounds. Refresh shop if not frozen, reset refresh counter.
-  public on_round_end(rng: () => number): void {
+  public on_round_end(rng: () => number, level: number): void {
     this._refreshes_this_round = 0;
     if (!this._frozen) {
-      this.roll(rng);
+      this.roll(rng, level);
     }
     this._frozen = false;
   }
 
   // Called when run starts.
-  public init_first_shop(rng: () => number): void {
+  public init_first_shop(rng: () => number, level: number): void {
     this._refreshes_this_round = 0;
     this._frozen = false;
-    this.roll(rng);
+    this.roll(rng, level);
   }
 }

@@ -506,7 +506,7 @@ export class Shop implements IScene {
       return;
     }
     const rng = rng_from_seed((this._runState.seed ^ (Date.now() & 0xffffffff)) >>> 0);
-    this._shopState.refresh(rng);
+    this._shopState.refresh(rng, this._runState.level);
     this._refresh_all();
   }
 
