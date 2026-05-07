@@ -60,14 +60,39 @@ export class PixiLayer {
     if (!this._app) return;
     const stage = this._app.stage;
 
-    // Recursively destroy every stage child (old scene root + any stale
-    // overlay like a drag ghost). PIXI v8's destroy({children:true}) walks
-    // the whole subtree atomically and detaches from parent. The while loop
-    // tolerates the array shrinking as each destroy removes itself; a
-    // for-loop with a forward index would skip every other child.
-    while (stage.children.length > 0) {
-      const child = stage.children[0];
-      child.destroy({ children: true, texture: false, textureSource: false });
+    // Stage layout: children[0] = current scene root, children[1..] = transient
+    // overlays (drag ghost). Each SceneData.container is created ONCE in
+    // SceneManager._addScene and reused on every re-entry to that scene —
+    // destroying the root itself would mark it `destroyed=true` and brick
+    // the next visit. PIXI's Container.destroy nulls _position/_scale/_pivot,
+    // so any subsequent render of the re-attached destroyed root null-derefs
+    // during transform compute, AND the early-return in destroy() means a
+    // second destroy() on the same root never reaches its children — they
+    // pile up across re-entries (the leak).
+    //
+    // Strategy: destroy descendants + transient overlays, but only DETACH
+    // the scene root via removeChild.
+
+    // 1. Destroy transient overlays (drag ghost etc). Walk top-down so the
+    //    array shrink during iteration only affects indices we've passed.
+    while (stage.children.length > 1) {
+      const overlay = stage.children[stage.children.length - 1];
+      overlay.destroy({ children: true, texture: false, textureSource: false });
+    }
+
+    // 2. Tear down the old scene's contents. Snapshot via slice() because
+    //    each destroy() detaches itself from oldRoot — a forward index over
+    //    the live children array would skip every other entry (the original
+    //    bug here). children:true cascades destruction recursively.
+    const oldRoot = stage.children[0] as Container | undefined;
+    if (oldRoot) {
+      const kids = oldRoot.children.slice();
+      for (let i = 0; i < kids.length; i++) {
+        kids[i].destroy({ children: true, texture: false, textureSource: false });
+      }
+      // Detach the root but DO NOT destroy it — it gets re-attached when its
+      // owning scene is re-entered.
+      stage.removeChild(oldRoot);
     }
 
     stage.addChild(newContainer);
