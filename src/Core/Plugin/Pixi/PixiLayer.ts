@@ -2,16 +2,19 @@ import { Application, Assets, Container, Sprite, Texture, Ticker } from "pixi.js
 import { Pino } from "../../Services/Pino";
 import { Resource } from "../../Kernel/Data/Resource";
 import { PxText } from "./PxText";
+import { PxGraphics } from "./PxGraphics";
 export class PixiLayer {
   private _pino: Pino;
   private _app: Application | null;
   private _pxText: PxText;
+  private _pxGraphics: PxGraphics;
   private _pendingAliases: string[];
 
-  constructor(pino: Pino, pxText: PxText) {
+  constructor(pino: Pino, pxText: PxText, pxGraphics: PxGraphics) {
     this._pino = pino;
     this._app = null;
     this._pxText = pxText;
+    this._pxGraphics = pxGraphics;
     this._pendingAliases = [];
   }
 
@@ -65,9 +68,13 @@ export class PixiLayer {
 
   public createText(text: string, style: any): PxText {
     let pt = this._pxText.createNew();
-    pt.init(text, (this._app as Application).renderer, style);
+    pt.init(text, style);
 
     return pt;
+  }
+
+  public createGraphics(): PxGraphics {
+    return this._pxGraphics.createNew();
   }
 
   public createSprite(sheet: string, frame?: string): Sprite | null {

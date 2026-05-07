@@ -33,6 +33,7 @@ import { Text } from '../Core/Kernel/GameObjects/Text.js';
 import { AbstractGameObject } from '../Core/Plugin/AbstractGameObject.js';
 import { GfxLoader } from '../Core/Plugin/GfxLoader.js';
 import { PixiLayer } from '../Core/Plugin/Pixi/PixiLayer.js';
+import { PxGraphics } from '../Core/Plugin/Pixi/PxGraphics.js';
 import { PxPoint } from '../Core/Plugin/Pixi/PxPoint.js';
 import { PxText } from '../Core/Plugin/Pixi/PxText.js';
 import { SceneManager } from '../Core/Plugin/SceneManager.js';
@@ -79,6 +80,7 @@ protected _Text: any;
 protected _AbstractGameObject: any;
 protected _GfxLoader: any;
 protected _PixiLayer: any;
+protected _PxGraphics: any;
 protected _PxPoint: any;
 protected _PxText: any;
 protected _SceneManager: any;
@@ -134,6 +136,7 @@ this._Text = this._smartDepend.addModule(Text, false);
 this._AbstractGameObject = this._smartDepend.addModule(AbstractGameObject, false);
 this._GfxLoader = this._smartDepend.addModule(GfxLoader, false);
 this._PixiLayer = this._smartDepend.addModule(PixiLayer, true);
+this._PxGraphics = this._smartDepend.addModule(PxGraphics, false);
 this._PxPoint = this._smartDepend.addModule(PxPoint, false);
 this._PxText = this._smartDepend.addModule(PxText, false);
 this._SceneManager = this._smartDepend.addModule(SceneManager, true);
@@ -289,6 +292,10 @@ this._smartDepend.addDependency(this._GfxLoader, this._PixiLayer);
 
 this._smartDepend.addDependency(this._PixiLayer, this._Pino);
 this._smartDepend.addDependency(this._PixiLayer, this._PxText);
+this._smartDepend.addDependency(this._PixiLayer, this._PxGraphics);
+
+
+this._smartDepend.addDependency(this._PxGraphics, this._Pino);
 
 
 this._smartDepend.addDependency(this._PxText, this._Pino);

@@ -1,4 +1,5 @@
 import { IAbstractGameObject } from './IAbstractGameObject';
+import { IGraphics } from './IGraphics';
 import { IScreen } from './IScreen';
 import { PixiLayer } from './Pixi/PixiLayer';
 export class Screen implements IScreen {
@@ -27,6 +28,10 @@ export class Screen implements IScreen {
   public createText(text: string, style: any): IAbstractGameObject {
     let textObj = this._pixiLayer.createText(text, style);
     return textObj as unknown as IAbstractGameObject;
+  }
+
+  public createGraphics(): IGraphics {
+    return this._pixiLayer.createGraphics();
   }
 
   public updateTexture(sprite: IAbstractGameObject, sheet: string, frame?: string) {

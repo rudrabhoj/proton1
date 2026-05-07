@@ -1,14 +1,13 @@
 import { PxPoint } from './PxPoint';
 import { Pino } from '../../Services/Pino';
-import { Text, Sprite, Renderer } from 'pixi.js';
+import { Text } from 'pixi.js';
 
 export class PxText {
   private _pino: Pino;
   private _pxPoint: PxPoint;
-  private _data: Sprite | null;
-  private _rawText: Text| null;
-  private _renderer: Renderer | null;
-  private _scale: PxPoint | null; _anchor: PxPoint | null;
+  private _data: Text | null;
+  private _scale: PxPoint | null;
+  private _anchor: PxPoint | null;
   protected _style: any;
   protected _fill: any;
 
@@ -16,234 +15,152 @@ export class PxText {
     this._pino = pino;
     this._pxPoint = pxPoint;
     this._data = null;
-    this._renderer = null;
-
     this._scale = null;
     this._anchor = null;
-
-    this._rawText = null;
   }
-
 
   get visible(): boolean {
-    if(this._data !== null){
-      return this._data.visible;
-    }
-    return false;
+    return this._data !== null ? this._data.visible : false;
   }
 
-  set visible(visible: boolean){
-    if(this._data !== null){
-      this._data.visible = visible;
-    }
+  set visible(visible: boolean) {
+    if (this._data) this._data.visible = visible;
   }
 
-
-  get width(): number{
-    if(this._data){
-      return this._data.width;
-    }
-    return -1;
+  get width(): number {
+    return this._data ? this._data.width : -1;
   }
 
-  get pivot(){
-    if(this._data){
-      return this._data.pivot;
-    }
+  set width(width: number) {
+    if (this._data) this._data.width = width;
   }
 
-  set pivot(val: any){
-    if(this._data){
-      this._data.pivot = val;
-    }
+  get height(): number {
+    return this._data ? this._data.height : -1;
   }
 
-  set width(width: number){
-    if(this._data){
-      this._data.width = width;
-    }
+  set height(height: number) {
+    if (this._data) this._data.height = height;
   }
 
-  get height(){
-    if(this._data){
-      return this._data.height; 
-    }
-    return -1;
+  get pivot() {
+    if (this._data) return this._data.pivot;
   }
 
-  set height(height: number){
-    if(this._data){
-      this._data.height = height;
-    }
+  set pivot(val: any) {
+    if (this._data) this._data.pivot = val;
   }
 
   get style() {
     return this._style;
   }
 
-  get text(): string {
-    if (this._rawText) {
-      return this._rawText.text;
-    } else {
-      return "";
-    }
-  }
-
-  set style(style: any){
+  set style(style: any) {
     this._style = style;
-    if(this._rawText){
-      this._rawText.style = style;
+    if (this._data) {
+      this._data.style = style;
       this._fill = style.fill;
     }
-    this.updateTexture();
   }
 
-  set fill(fill: string){
-    this._style.fill = fill;
-    this._fill = this._style.fill;
-    if(this._rawText !== null && this._rawText !== undefined){
-      this._rawText.style = this._style;
-    }
-    this.updateTexture();
+  get text(): string {
+    return this._data ? String(this._data.text) : "";
   }
 
   set text(val: string) {
-    if (this._rawText) {
-      this._rawText.text = val;
-      this.updateTexture();
-    }
+    if (this._data) this._data.text = val;
   }
 
-  get fill(){
+  get fill() {
     return this._fill;
   }
 
-  createNew(): PxText {
-    return new PxText(this._pino, this._pxPoint.createNew(1, 1, () => {}, () => {}));
-  }
-
-  public init(text: string, renderer: Renderer, style: any = undefined) {
-    this._renderer = renderer;
-    this._style = style;
-    this._fill = style.fill;
-    this._rawText = new Text({ text, style });
-    this._data = new Sprite(this._renderer.generateTexture(this._rawText));
-
-    this._scale = this._pxPoint.createNew(1, 1, (xVal: number)=> {
-      if (this._data != null) this._data.scale.x = xVal;
-      //this._updateTexture();
-      //console.log("updated X Val!");
-    }, (yVal: number) => {
-      if (this._data != null) this._data.scale.y = yVal;
-      //this._updateTexture();
-      //console.log("updated Y Val!");
-    });
-
-    this._anchor = this._pxPoint.createNew(1, 1, (xVal: number)=> {
-      if (this._data != null) this._data.anchor.x = xVal;
-    }, (yVal: number) => {
-      if (this._data != null) this._data.anchor.y = yVal;
-    });
-  }
-
-  get data(): Sprite {
-    let dummy: any = null;
-
-    if (this._data != null) {
-      return this._data;
-    } else {
-      this._pino.error("Can not access data before initializing text!");
-
-      return dummy as Sprite;
-    }
-  }
-
-  get scale(): any {
-    return this._scale;
+  set fill(fill: string) {
+    this._style.fill = fill;
+    this._fill = fill;
+    if (this._data) this._data.style = this._style;
   }
 
   get alpha(): number {
-    if(this._data){
-      return this._data.alpha;
-    }
+    if (this._data) return this._data.alpha;
     this._pino.warn("cannot return alpha for object that is not initialized!");
     return -1;
+  }
+
+  set alpha(alpha: number) {
+    if (this._data) this._data.alpha = alpha;
   }
 
   get anchor(): PxPoint {
     return (this._anchor as PxPoint);
   }
 
-  set alpha(alpha: number){
-    if(this._data){
-      this._data.alpha = alpha;
-    }
+  get scale(): any {
+    return this._scale;
   }
 
   get x(): number {
-    if (this._data != null) {
-      return this._data.x;
-    } else {
-      this._pino.error("Can not access data before initializing text!");
-
-      return 0;
-    }
-  }
-
-  get y(): number {
-    if (this._data != null) {
-      return this._data.y;
-    } else {
-      this._pino.error("Can not access data before initializing text!");
-
-      return 0;
-    }
+    if (this._data) return this._data.x;
+    this._pino.error("Can not access data before initializing text!");
+    return 0;
   }
 
   set x(xval: number) {
-    if (this._data != null) {
-      this._data.x = xval;
-    } else {
-      this._pino.error("Can not access data before initializing text!");
-    }
+    if (this._data) this._data.x = xval;
+    else this._pino.error("Can not access data before initializing text!");
+  }
+
+  get y(): number {
+    if (this._data) return this._data.y;
+    this._pino.error("Can not access data before initializing text!");
+    return 0;
   }
 
   set y(yval: number) {
-    if (this._data != null) {
-      this._data.y = yval;
-    } else {
-      this._pino.error("Can not access data before initializing text!");
-    }
+    if (this._data) this._data.y = yval;
+    else this._pino.error("Can not access data before initializing text!");
   }
 
-  addChild(object: any){
+  get data(): Text {
+    if (this._data) return this._data;
+    this._pino.error("Can not access data before initializing text!");
+    return null as any as Text;
+  }
+
+  createNew(): PxText {
+    return new PxText(this._pino, this._pxPoint.createNew(1, 1, () => {}, () => {}));
+  }
+
+  public init(text: string, style: any = undefined) {
+    this._style = style;
+    this._fill = style.fill;
+    this._data = new Text({ text, style });
+
+    this._scale = this._pxPoint.createNew(1, 1, (xVal: number) => {
+      if (this._data) this._data.scale.x = xVal;
+    }, (yVal: number) => {
+      if (this._data) this._data.scale.y = yVal;
+    });
+
+    this._anchor = this._pxPoint.createNew(1, 1, (xVal: number) => {
+      if (this._data) this._data.anchor.x = xVal;
+    }, (yVal: number) => {
+      if (this._data) this._data.anchor.y = yVal;
+    });
+  }
+
+  addChild(object: any) {
     this.data.addChild(object);
   }
 
-  removeChild(object: any){
+  removeChild(object: any) {
     this.data.removeChild(object);
   }
 
-  public updateTexture() {
-    this._updateTexture();
-  }
-
-  private _updateTexture() {
-    if (this._data != null && this._renderer != null && this._rawText != null) {
-      this._data.texture = this._renderer.generateTexture(this._rawText);
-    } else {
-      this._pino.error("Can not update text texture before init!");
-    }
-  }
-
-  public destroy(){
-    if(this._data){
+  public destroy() {
+    if (this._data) {
       this._data.destroy();
-      
-    }
-    if(this._rawText){
-      this._rawText.destroy();
+      this._data = null;
     }
   }
 }
-
