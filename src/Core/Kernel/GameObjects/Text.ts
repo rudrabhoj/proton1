@@ -32,14 +32,17 @@ export class Text extends CoreEntity {
 
   public init(x: number, y: number, text: string, style: any) {
     let fo = this._screen.createText(text, style);
-    
+
     this._sceneManager.addObject(fo.data);
     this._activate(x, y, fo);
 
     this._label.init(text, style, fo);
 
-    //console.log(fo);
-    //console.log(this._foreignObject);
+    // Register with ScaleManager so window resize re-runs position+display
+    // updates. Without this, text is positioned once (at scene create) and
+    // never re-flowed when the viewport ratio changes — it stays at the old
+    // computed pixel coords while siblings (Sprite/Graphic) reposition.
+    this._scaleManager.addEntity(this);
   }
 
   public createNew(): Text {
