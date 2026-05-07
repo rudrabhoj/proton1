@@ -238,13 +238,14 @@ export class Shop implements IScene {
     this._hdd_page_text.position.anchorX = 1;
     this._hdd_page_text.position.anchorY = 0.5;
 
-    // 7 elements: ◀ + 5 slots + ▶
-    const arrow_w = 100;
-    const total_w = arrow_w * 2 + SLOT_SIZE * 5 + HDD_GAP * 6;
+    // 7 elements: arrow + 5 slots + arrow. Arrows use the same box size as
+    // slots so the row reads as a uniform strip; reserving anything other
+    // than SLOT_SIZE for them desyncs the layout math from the rendered
+    // boxes and causes overlap.
+    const total_w = SLOT_SIZE * 7 + HDD_GAP * 6;
     const start_x = (1080 - total_w) / 2;
     const y = 830;
 
-    // Left arrow
     const left_arrow = this._slot_proto.createNew();
     left_arrow.init({ x: start_x, y, size: SLOT_SIZE, tone: 'player' });
     left_arrow.set_state('filled');
@@ -252,8 +253,7 @@ export class Shop implements IScene {
     left_arrow.graphic.graphics.interactive = true;
     left_arrow.graphic.graphics.on('pointerup', () => this._on_hdd_prev());
 
-    // 5 slots
-    const slot_start = start_x + arrow_w + HDD_GAP;
+    const slot_start = start_x + SLOT_SIZE + HDD_GAP;
     for (let i = 0; i < 5; i++) {
       const x = slot_start + i * (SLOT_SIZE + HDD_GAP);
       const slot = this._slot_proto.createNew();
@@ -261,7 +261,6 @@ export class Shop implements IScene {
       this._hdd_views.push({ slot, origin: 'hdd', index: i });
     }
 
-    // Right arrow
     const right_arrow_x = slot_start + 5 * (SLOT_SIZE + HDD_GAP);
     const right_arrow = this._slot_proto.createNew();
     right_arrow.init({ x: right_arrow_x, y, size: SLOT_SIZE, tone: 'player' });
