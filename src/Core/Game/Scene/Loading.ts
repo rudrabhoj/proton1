@@ -39,7 +39,7 @@ export class Loading implements IScene {
   private async _loadFont(): Promise<void> {
     return new Promise((resolve: Function) => {
       const list = this._resource.createArray([
-        { name: "maple-font", url: "assets/fonts/MapleMono-NF-Regular.ttf", family: Theme.font },
+        { name: "maple-font", url: "assets/fonts/MapleMono-NF-Subset.woff2", family: Theme.font },
       ]);
       this._gfxLoader.addResources(list);
       this._gfxLoader.download(() => {}, () => { resolve(); });

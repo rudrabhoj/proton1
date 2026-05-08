@@ -1,38 +1,40 @@
-import pino from 'pino';
+// Logger facade. Class name kept as `Pino` so the DI graph and existing
+// constructor parameter types don't change; the actual implementation is
+// just `console.*` calls. We had `pino` as a dependency before, but for the
+// four log calls the rest of the app makes, ~30-40 KB of structured-logger
+// machinery was overkill. This file is the only place log output is
+// produced — swap implementations here without touching call sites.
 
-const APP_NAME = 'Proton 1';
-const LOG_LEVEL = 'debug';
+const APP_TAG = '[proton1]';
 
 export class Pino {
-    private _logger: pino.Logger;
+    private _silent: boolean;
 
     constructor() {
-        this._logger = pino({
-            name: APP_NAME,
-            level: LOG_LEVEL,
-            browser: {
-                asObject: false,
-            },
-        });
+        this._silent = false;
     }
 
-    public info(text_to_print: string) {
-        this._logger.info(text_to_print);
+    public info(text: string): void {
+        if (this._silent) return;
+        console.info(APP_TAG, text);
     }
 
-    public debug(text_to_print: string) {
-        this._logger.debug(text_to_print);
+    public debug(text: string): void {
+        if (this._silent) return;
+        console.debug(APP_TAG, text);
     }
 
-    public warn(text_to_print: string) {
-        this._logger.warn(text_to_print);
+    public warn(text: string): void {
+        if (this._silent) return;
+        console.warn(APP_TAG, text);
     }
 
-    public error(text_to_print: string) {
-        this._logger.error(text_to_print);
+    public error(text: string): void {
+        if (this._silent) return;
+        console.error(APP_TAG, text);
     }
 
-    public set_silent(s: boolean) {
-        this._logger.level = s ? 'silent' : LOG_LEVEL;
+    public set_silent(s: boolean): void {
+        this._silent = s;
     }
 }

@@ -1,18 +1,35 @@
-import { Application, Assets, Container, Sprite, Texture, Ticker } from "pixi.js";
+import { Assets, Container, Sprite, Texture, Ticker, WebGLRenderer } from "pixi.js";
 import { Pino } from "../../Services/Pino";
 import { Resource } from "../../Kernel/Data/Resource";
 import { PxText } from "./PxText";
 import { PxGraphics } from "./PxGraphics";
+
+// We construct WebGLRenderer + Container + Ticker manually instead of using
+// pixi.js's Application entry point. The default Application setup calls
+// autoDetectRenderer() which dynamic-imports WebGL, WebGPU, AND Canvas2D
+// backends — rolldown then inlines all three into the main bundle (~120-180
+// KB raw of dead code). By going direct, only WebGLRenderer ships. WebGPU +
+// Canvas2D become unreachable from any static import and tree-shake out.
+//
+// The price of skipping the high-level entry point: ResizePlugin and
+// TickerPlugin from app/init don't auto-attach. Neither matters here — we
+// manage resize through ScaleManager and our render loop runs off
+// Ticker.shared directly, not app.ticker.
+
 export class PixiLayer {
   private _pino: Pino;
-  private _app: Application | null;
+  private _renderer: WebGLRenderer | null;
+  private _stage: Container | null;
+  private _render_tick: (() => void) | null;
   private _pxText: PxText;
   private _pxGraphics: PxGraphics;
   private _pendingAliases: string[];
 
   constructor(pino: Pino, pxText: PxText, pxGraphics: PxGraphics) {
     this._pino = pino;
-    this._app = null;
+    this._renderer = null;
+    this._stage = null;
+    this._render_tick = null;
     this._pxText = pxText;
     this._pxGraphics = pxGraphics;
     this._pendingAliases = [];
@@ -26,22 +43,32 @@ export class PixiLayer {
     let alphaValue = 1;
     if (transparent) alphaValue = 0;
 
-    let app = new Application();
-    await app.init({
+    const renderer = new WebGLRenderer();
+    await renderer.init({
       width: width,
       height: height,
       antialias: antialias,
-      backgroundAlpha: alphaValue
+      backgroundAlpha: alphaValue,
     });
 
-    document.body.appendChild(app.canvas);
+    document.body.appendChild(renderer.canvas);
 
-    this._app = app;
+    const stage = new Container();
+    this._renderer = renderer;
+    this._stage = stage;
+
+    // Render once per Ticker frame. Ticker.shared is the global PIXI ticker
+    // instance — same one Application.init would have tied to app.ticker
+    // via TickerPlugin. We attach our render directly and start the ticker
+    // since TickerPlugin (which does this) isn't loaded.
+    this._render_tick = () => renderer.render({ container: stage });
+    Ticker.shared.add(this._render_tick);
+    Ticker.shared.start();
   }
 
   public resize(width: number, height: number) {
-    if (this._app) {
-      this._app.renderer.resize(width, height);
+    if (this._renderer) {
+      this._renderer.resize(width, height);
     }
   }
 
@@ -50,15 +77,14 @@ export class PixiLayer {
   // even when the cursor is over empty area between children. Per pixi v8
   // canonical drag example.
   public ensureStageHitArea(): void {
-    if (!this._app) return;
-    const stage = this._app.stage;
-    stage.eventMode = 'static';
-    stage.hitArea = this._app.screen;
+    if (!this._stage || !this._renderer) return;
+    this._stage.eventMode = 'static';
+    this._stage.hitArea = this._renderer.screen;
   }
 
   public swapSceneRoot(newContainer: any) {
-    if (!this._app) return;
-    const stage = this._app.stage;
+    if (!this._stage) return;
+    const stage = this._stage;
 
     // Stage layout: children[0] = current scene root, children[1..] = transient
     // overlays (drag ghost). Each SceneData.container is created ONCE in
@@ -98,10 +124,10 @@ export class PixiLayer {
     stage.addChild(newContainer);
   }
 
-  // Stage pointermove. Requires stage.hitArea = app.screen (set via ensureStageHitArea).
+  // Stage pointermove. Requires stage.hitArea = renderer.screen (set via ensureStageHitArea).
   public onStagePointerMove(cb: (x: number, y: number) => void): () => void {
-    if (!this._app) return () => {};
-    const stage = this._app.stage;
+    if (!this._stage) return () => {};
+    const stage = this._stage;
     this.ensureStageHitArea();
     const handler = (e: any) => cb(e.global.x, e.global.y);
     stage.on('pointermove', handler);
@@ -109,8 +135,8 @@ export class PixiLayer {
   }
 
   public onStagePointerUp(cb: (x: number, y: number) => void): () => void {
-    if (!this._app) return () => {};
-    const stage = this._app.stage;
+    if (!this._stage) return () => {};
+    const stage = this._stage;
     this.ensureStageHitArea();
     const handler = (e: any) => cb(e.global.x, e.global.y);
     stage.on('pointerup', handler);
@@ -124,13 +150,13 @@ export class PixiLayer {
   // Overlay = stage child above the current scene container.
   // Survives until removed; killed if scene swap calls removeChildren on stage.
   public addOverlay(displayObj: any): void {
-    if (!this._app) return;
-    this._app.stage.addChild(displayObj);
+    if (!this._stage) return;
+    this._stage.addChild(displayObj);
   }
 
   public removeOverlay(displayObj: any): void {
-    if (!this._app) return;
-    this._app.stage.removeChild(displayObj);
+    if (!this._stage) return;
+    this._stage.removeChild(displayObj);
   }
 
   public createContainer(): Container {
